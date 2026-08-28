@@ -1,0 +1,179 @@
+============================================================
+ SOFTIA - MANUAL DE INSTALAÇÃO
+============================================================
+
+O QUE É O SOFTIA
+------------------------------------------------------------
+O SOFTIA é um assistente de inteligência artificial que
+conversa por voz, analisa a tela e a câmera, controla o
+mouse, abre programas, organiza arquivos, mantém agenda e
+memórias, entre outras funções, diretamente no computador
+do usuário.
+
+
+============================================================
+ O QUE PRECISA ESTAR INSTALADO NA MÁQUINA
+============================================================
+
+O instalador do SOFTIA (SoftIA_Setup.exe) já inclui o
+programa e todas as bibliotecas necessárias (Python,
+interface gráfica, bibliotecas de áudio, vídeo, etc.).
+NÃO é preciso instalar Python nem nenhuma outra ferramenta
+separadamente.
+
+O único item que o usuário precisa providenciar é:
+
+  - Uma CHAVE DE API do Google Gemini (gratuita).
+    Ela é pedida automaticamente na primeira vez que o
+    SOFTIA é aberto (veja o passo a passo mais abaixo).
+
+Também é necessário:
+
+  - Conexão com a internet (o SOFTIA conversa em tempo real
+    com o Google Gemini pela nuvem).
+  - Microfone (para conversar por voz).
+  - Webcam (opcional, apenas se quiser usar a função de
+    analisar a câmera).
+
+
+============================================================
+ REQUISITOS MÍNIMOS - WINDOWS
+============================================================
+
+  Sistema operacional : Windows 10 ou Windows 11 (64 bits)
+  Processador         : Dual-core 2.0 GHz ou superior
+  Memória RAM         : 4 GB (recomendado 8 GB)
+  Espaço em disco     : 500 MB livres
+  Internet            : Obrigatória
+  Microfone           : Obrigatório para uso por voz
+  Webcam              : Opcional
+
+  Observação: o SOFTIA foi desenvolvido especificamente para
+  Windows e usa recursos internos do sistema (controle de
+  mouse, teclado, área de transferência e abertura de
+  programas). Por isso, ele funciona somente em computadores
+  Windows.
+
+
+============================================================
+ REQUISITOS MÍNIMOS - macOS
+============================================================
+
+  No momento, o SOFTIA NÃO possui uma versão para macOS.
+
+  O motivo é técnico: várias funções do programa (mover o
+  mouse, clicar, colar texto, abrir aplicativos do sistema,
+  localizar programas no menu iniciar) foram construídas
+  usando bibliotecas exclusivas do Windows. Essas mesmas
+  funções não existem da mesma forma no macOS.
+
+  Uma versão para Mac exigiria adaptar essas partes do
+  programa para as ferramentas equivalentes da Apple, o que
+  ainda não foi feito. Por enquanto, o uso em Mac não é
+  suportado.
+
+
+============================================================
+ PASSO A PASSO DA INSTALAÇÃO (WINDOWS)
+============================================================
+
+1. Copie o arquivo "SoftIA_Setup.exe" para o computador
+   onde o SOFTIA será instalado (pode ser por pen drive,
+   e-mail, link de download, etc.).
+
+2. Dê dois cliques em "SoftIA_Setup.exe" para iniciar a
+   instalação.
+
+3. Se o Windows exibir um aviso de segurança perguntando se
+   deseja permitir a execução, clique em "Mais informações"
+   e depois em "Executar assim mesmo".
+
+4. Siga o assistente de instalação:
+       - Clique em "Avançar"
+       - Marque a opção "Criar um atalho na Área de
+         Trabalho", se desejar
+       - Clique em "Avançar" e depois em "Instalar"
+
+5. Ao final, marque a opção "Abrir SoftIA agora" e clique em
+   "Concluir" (ou abra pelo atalho criado depois).
+
+6. Na primeira abertura, o SOFTIA vai pedir uma CHAVE DE API
+   do Google Gemini. Para conseguir uma chave gratuita:
+
+       a) Acesse, em qualquer navegador:
+            aistudio.google.com/apikey
+       b) Faça login com uma conta Google
+       c) Clique em "Create API key" (Criar chave de API)
+       d) Copie a chave gerada
+
+7. Volte para a janela do SOFTIA, cole a chave copiada no
+   campo indicado e clique em "Salvar e continuar".
+
+8. Pronto! O SOFTIA está instalado e configurado. Nas
+   próximas vezes, ele abre direto, sem pedir a chave
+   novamente.
+
+
+============================================================
+ SE A SOFTIA NÃO OUVIR VOCÊ (MICROFONE FRACO)
+============================================================
+
+  Alguns notebooks têm o microfone interno com um volume
+  muito baixo por padrão, mesmo com o volume do Windows em
+  100%. Se você falar com a SOFTIA e ela não responder nada,
+  siga estes passos para aumentar a sensibilidade do
+  microfone:
+
+  1. Aperte as teclas Windows + R, digite "mmsys.cpl" (sem
+     aspas) e pressione Enter.
+
+  2. Na janela "Som", clique na aba "Gravação".
+
+  3. Dê duplo clique no microfone marcado como "Dispositivo
+     Padrão" (geralmente "Microfone interno" ou o nome da
+     placa de som do computador).
+
+  4. Vá até a aba "Níveis".
+
+  5. Aumente o controle "Aumento de sensibilidade do
+     microfone" (também chamado de "Microphone Boost").
+     Comece testando por volta de +20 dB a +24 dB.
+
+  6. Clique em "Aplicar" e depois em "OK".
+
+  7. Abra o SOFTIA e teste novamente.
+
+  Dica: se a voz ficar "estourada" ou distorcida (SOFTIA
+  entende errado o que foi falado), o aumento está alto
+  demais — reduza um pouco o valor e teste de novo. O ideal
+  é falar em volume normal e o microfone captar de forma
+  clara, sem cortar.
+
+  Esse ajuste é feito uma única vez por computador e fica
+  salvo no Windows, não precisa repetir depois.
+
+
+============================================================
+ COMO DESINSTALAR
+============================================================
+
+  Opção 1: Pelo Menu Iniciar
+      Menu Iniciar > SoftIA > Desinstalar SoftIA
+
+  Opção 2: Pelo Painel de Controle
+      Configurações > Aplicativos > SoftIA > Desinstalar
+
+
+============================================================
+ DÚVIDAS OU PROBLEMAS
+============================================================
+
+  - Se o SOFTIA não abrir: verifique se há conexão com a
+    internet e se a chave de API foi colada corretamente
+    (sem espaços antes ou depois).
+
+  - Se precisar trocar a chave de API depois de instalada,
+    entre em contato com quem forneceu o programa para
+    orientações sobre como redefini-la.
+
+============================================================

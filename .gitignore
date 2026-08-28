@@ -1,0 +1,20 @@
+# Segredos - NUNCA versionar
+.env
+
+# Ambiente virtual Python
+venv/
+
+# Cache e bytecode Python
+__pycache__/
+*.pyc
+
+# Artefatos de build do PyInstaller (gerados a partir do código-fonte)
+build/
+dist/
+*.spec
+
+# Instalador compilado (binário grande, gerado a partir do código-fonte)
+Setup/Instalador/*.exe
+
+# Dados pessoais do usuário (memórias e agenda salvas localmente)
+memory/*.json

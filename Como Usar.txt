@@ -1,0 +1,2 @@
+Para Colocar ambiente em Virtual > .\venv\Scripts\Activate.ps1
+Para Reproduziar > python main.py 
