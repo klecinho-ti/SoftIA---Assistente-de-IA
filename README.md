@@ -40,9 +40,26 @@ SOFTIA é uma assistente de inteligência artificial com voz, para Windows, que 
 
 ## Instalação (usuário final)
 
-Para quem só quer usar o programa, sem mexer em código: veja o instalador pronto e o manual de instalação na pasta [`Setup/`](Setup/) deste repositório (`Setup/Instalador/SoftIA_Setup.exe` após a build, e `Setup/Manual de Instalação/`).
+**Baixe o instalador pronto pela aba [Releases](../../releases) deste repositório** — não pelo código-fonte. O instalador (`SoftIA_Setup.exe`) não fica junto com o código (é um binário grande, gerado a partir da build), então baixar direto do código-fonte não traz o `.exe`.
+
+Passo a passo:
+
+1. Acesse a [página de Releases](../../releases)
+2. Baixe o arquivo `SoftIA_Setup.exe` da versão mais recente
+3. Execute e siga o assistente de instalação (veja o manual completo em [`Setup/Manual de Instalação/`](Setup/Manual%20de%20Instalação/))
 
 Na primeira execução, o SOFTIA pede a chave de API do Gemini e salva localmente em `%APPDATA%\SoftIA\`, sem precisar de nenhuma configuração manual de ambiente.
+
+### Publicando uma nova versão (para o mantenedor)
+
+Sempre que gerar uma nova build do instalador, publique como uma nova Release para que o `.exe` fique disponível para download (o código-fonte sozinho não é suficiente):
+
+```powershell
+gh release create vX.Y.Z "Setup/Instalador/SoftIA_Setup.exe" `
+  --repo klecinho-ti/SoftIA---Assistente-de-IA `
+  --title "SOFTIA vX.Y.Z" `
+  --notes "Descreva aqui o que mudou nesta versão."
+```
 
 ## Executando em modo desenvolvimento
 
