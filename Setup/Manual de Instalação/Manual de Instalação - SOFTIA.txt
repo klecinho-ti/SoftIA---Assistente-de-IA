@@ -10,6 +10,11 @@ mouse, abre programas, organiza arquivos, mantém agenda e
 memórias, entre outras funções, diretamente no computador
 do usuário.
 
+O nome da assistente, a voz (feminina ou masculina) e a
+senha de autenticação podem ser personalizados pelo usuário,
+e a janela principal mostra em tempo real o uso de CPU, RAM
+e disco do computador.
+
 
 ============================================================
  O QUE PRECISA ESTAR INSTALADO NA MÁQUINA
@@ -97,8 +102,9 @@ Também é necessário:
 5. Ao final, marque a opção "Abrir SoftIA agora" e clique em
    "Concluir" (ou abra pelo atalho criado depois).
 
-6. Na primeira abertura, o SOFTIA vai pedir uma CHAVE DE API
-   do Google Gemini. Para conseguir uma chave gratuita:
+6. Na primeira abertura, o SOFTIA abre a janela de
+   Configurações, que pede uma CHAVE DE API do Google Gemini.
+   Para conseguir uma chave gratuita:
 
        a) Acesse, em qualquer navegador:
             aistudio.google.com/apikey
@@ -107,11 +113,34 @@ Também é necessário:
        d) Copie a chave gerada
 
 7. Volte para a janela do SOFTIA, cole a chave copiada no
-   campo indicado e clique em "Salvar e continuar".
+   campo indicado. Nessa mesma janela dá para escolher:
+
+       - Nome da assistente (o padrão é "SOFTIA")
+       - Voz (feminina ou masculina)
+       - Se o SOFTIA vai pedir uma senha antes de liberar
+         comandos, e qual será essa senha
+
+   Ao terminar, clique em "Salvar".
 
 8. Pronto! O SOFTIA está instalado e configurado. Nas
-   próximas vezes, ele abre direto, sem pedir a chave
-   novamente.
+   próximas vezes, ele abre direto, sem pedir nada de novo.
+
+
+============================================================
+ COMO TROCAR O NOME, A VOZ OU A SENHA DEPOIS DE INSTALADO
+============================================================
+
+  Essas opções podem ser alteradas a qualquer momento, sem
+  precisar reinstalar o SOFTIA:
+
+  1. Abra o SOFTIA normalmente.
+  2. Na barra lateral esquerda, clique no botão
+     "CONFIGURAÇÕES".
+  3. Altere o que quiser (nome, chave de API, voz ou senha).
+  4. Clique em "Salvar".
+
+  A mudança já vale a partir da próxima vez que você iniciar
+  uma conexão pelo botão "INICIAR CONEXÃO".
 
 
 ============================================================
@@ -172,8 +201,10 @@ Também é necessário:
     internet e se a chave de API foi colada corretamente
     (sem espaços antes ou depois).
 
-  - Se precisar trocar a chave de API depois de instalada,
-    entre em contato com quem forneceu o programa para
-    orientações sobre como redefini-la.
+  - Se precisar trocar a chave de API, o nome da assistente,
+    a voz ou a senha depois de instalado, use o botão
+    "CONFIGURAÇÕES" na barra lateral do SOFTIA (veja a seção
+    "COMO TROCAR O NOME, A VOZ OU A SENHA DEPOIS DE
+    INSTALADO" acima). Não é preciso reinstalar.
 
 ============================================================

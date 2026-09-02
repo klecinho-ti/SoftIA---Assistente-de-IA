@@ -5,7 +5,9 @@ SOFTIA é uma assistente de inteligência artificial com voz, para Windows, que 
 ## Funcionalidades
 
 - **Conversa por voz em tempo real**, com áudio de entrada e saída via Gemini Live
-- **Autenticação por palavra-chave** antes de liberar comandos e conversas
+- **Personalização completa pela janela de Configurações**: nome da assistente, voz (feminina ou masculina) e senha de autenticação (opcional), tudo editável a qualquer momento, sem reinstalar
+- **Autenticação por palavra-chave** antes de liberar comandos e conversas — pode ser ativada, desativada ou trocada livremente
+- **Painel de hardware ao vivo** na janela principal, com uso atual de CPU, memória RAM e disco
 - **Visão computacional**: análise da tela e da webcam sob comando
 - **Clique visual guiado por IA**: localiza um elemento na tela pela descrição e clica nele
 - **Controle do mouse**: rolagem, cliques e movimento até coordenadas
@@ -48,7 +50,7 @@ Passo a passo:
 2. Baixe o arquivo `SoftIA_Setup.exe` da versão mais recente
 3. Execute e siga o assistente de instalação (veja o manual completo em [`Setup/Manual de Instalação/`](Setup/Manual%20de%20Instalação/))
 
-Na primeira execução, o SOFTIA pede a chave de API do Gemini e salva localmente em `%APPDATA%\SoftIA\`, sem precisar de nenhuma configuração manual de ambiente.
+Na primeira execução, o SOFTIA abre a janela de **Configurações**, onde o usuário informa a chave de API do Gemini e pode personalizar o nome da assistente, a voz e a senha de autenticação. Tudo é salvo localmente em `%APPDATA%\SoftIA\`, sem precisar de nenhuma configuração manual de ambiente. Essa janela pode ser reaberta a qualquer momento pelo botão **Configurações** na barra lateral, e qualquer mudança vale imediatamente, sem reinstalar o programa.
 
 ### Publicando uma nova versão (para o mantenedor)
 
@@ -98,7 +100,7 @@ SoftIA/
 - Nunca exclui ou sobrescreve arquivos do usuário
 - Confirmações e bloqueios antes de ações sensíveis (cliques em elementos de exclusão, compra, instalação, etc.)
 - Cada instalação usa a própria chave de API do usuário — nunca compartilhada entre máquinas
-- Autenticação por palavra-chave antes de executar qualquer comando
+- Autenticação por palavra-chave antes de executar qualquer comando, quando ativada pelo usuário na janela de Configurações
 
 ## Autor
 
