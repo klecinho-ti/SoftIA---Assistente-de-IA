@@ -2,13 +2,19 @@
 # [Klecio] imediatamente após salvar as Configurações.
 import os
 
+# [Klecio] time é usado apenas para o intervalo entre leituras do
+# [Klecio] painel de hardware, dentro da thread dedicada a isso.
+import time
+
 # [Klecio] psutil fornece o uso atual de CPU, memória e disco
 # [Klecio] para o painel de hardware ao vivo do painel lateral.
 import psutil
 
 # [Klecio] Qt fornece constantes do framework PySide6.
-# [Klecio] Neste arquivo, Qt.AlignCenter é usado para centralizar textos.
-from PySide6.QtCore import Qt, QTimer
+# [Klecio] Neste arquivo, Qt.AlignCenter é usado para centralizar textos,
+# [Klecio] QThread e Signal permitem ler o hardware em segundo plano,
+# [Klecio] sem travar a interface.
+from PySide6.QtCore import Qt, QThread, QTimer, Signal
 
 # [Klecio] Importa os componentes visuais usados pela janela:
 # [Klecio] QFrame cria os painéis; QHBoxLayout e QVBoxLayout organizam os elementos;
@@ -145,6 +151,59 @@ QScrollBar::sub-line:vertical {
     height: 0px;
 }
 """
+
+
+# [Klecio] Lê o uso de CPU, memória e disco em uma thread separada
+# [Klecio] da interface gráfica. As chamadas do psutil (principalmente
+# [Klecio] disco) podem ocasionalmente demorar alguns instantes nesta
+# [Klecio] máquina; se fossem feitas direto na thread da interface,
+# [Klecio] travariam a janela e atrasariam a entrega do áudio durante
+# [Klecio] a chamada. Rodando aqui, o pior caso é uma leitura atrasada,
+# [Klecio] nunca uma trava da interface ou da conversa.
+class MonitorHardwareThread(QThread):
+
+    # Envia o uso atual de CPU, RAM e disco (em percentual) para a interface.
+    dados_hardware = Signal(float, float, float)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.ativo = True
+
+    def run(self):
+        # Primeira chamada apenas define a referência de comparação
+        # exigida pelo psutil; o valor em si é descartado.
+        psutil.cpu_percent(
+            interval=None
+        )
+
+        while self.ativo:
+            time.sleep(2)
+
+            if not self.ativo:
+                break
+
+            try:
+                uso_cpu = psutil.cpu_percent(
+                    interval=None
+                )
+
+                uso_ram = psutil.virtual_memory().percent
+                uso_disco = psutil.disk_usage("C:\\").percent
+
+            # Se qualquer leitura falhar, ignora esta rodada e tenta
+            # novamente no próximo ciclo, sem derrubar a thread.
+            except Exception:
+                continue
+
+            self.dados_hardware.emit(
+                uso_cpu,
+                uso_ram,
+                uso_disco,
+            )
+
+    def parar(self):
+        self.ativo = False
 
 
 # [Klecio] Classe principal da interface futurista.
@@ -453,22 +512,16 @@ class MainWindow(QMainWindow):
             self.label_disco
         )
 
-        # [Klecio] Referência de uso de CPU exigida pelo psutil antes
-        # [Klecio] da primeira leitura confiável.
-        psutil.cpu_percent(
-            interval=None
-        )
+        # [Klecio] Lê CPU, RAM e disco em uma thread separada, para que
+        # [Klecio] uma leitura ocasionalmente lenta nunca trave a janela
+        # [Klecio] nem atrase o áudio durante uma chamada.
+        self.thread_hardware = MonitorHardwareThread(self)
 
-        # [Klecio] Timer que atualiza o painel de hardware a cada 2 segundos.
-        self.timer_hardware = QTimer(self)
-
-        self.timer_hardware.timeout.connect(
+        self.thread_hardware.dados_hardware.connect(
             self._atualizar_hardware
         )
 
-        self.timer_hardware.start(
-            2000
-        )
+        self.thread_hardware.start()
 
         # [Klecio] Cria o painel que receberá o visualizador futurista.
         painel_principal = QFrame()
@@ -808,31 +861,21 @@ class MainWindow(QMainWindow):
         # [Klecio] Encaminha o pedido de câmera para a thread Gemini.
         self.live_worker.solicitar_analise_camera()
 
-    # [Klecio] Atualiza os rótulos de CPU, RAM e disco do painel de hardware.
-    def _atualizar_hardware(self):
-        try:
-            uso_cpu = psutil.cpu_percent(
-                interval=None
-            )
-
-            memoria = psutil.virtual_memory()
-            disco = psutil.disk_usage("C:\\")
-
-        # [Klecio] Se a leitura falhar por qualquer motivo, mantém os
-        # [Klecio] últimos valores exibidos em vez de quebrar a interface.
-        except Exception:
-            return
-
+    # [Klecio] Atualiza os rótulos de CPU, RAM e disco do painel de
+    # [Klecio] hardware. Os valores já chegam prontos, calculados na
+    # [Klecio] thread MonitorHardwareThread — este método só atualiza
+    # [Klecio] o texto, o que é instantâneo e nunca trava a interface.
+    def _atualizar_hardware(self, uso_cpu, uso_ram, uso_disco):
         self.label_cpu.setText(
             f"CPU: {uso_cpu:.0f}%"
         )
 
         self.label_ram.setText(
-            f"RAM: {memoria.percent:.0f}%"
+            f"RAM: {uso_ram:.0f}%"
         )
 
         self.label_disco.setText(
-            f"Disco: {disco.percent:.0f}%"
+            f"Disco: {uso_disco:.0f}%"
         )
 
     # [Klecio] Atualiza o título da janela e o texto central do
@@ -882,8 +925,10 @@ class MainWindow(QMainWindow):
     # [Klecio] Evento executado automaticamente ao fechar a janela.
     # [Klecio] Ele garante que a thread não permaneça rodando em segundo plano.
     def closeEvent(self, event):
-        # [Klecio] Para o timer do painel de hardware.
-        self.timer_hardware.stop()
+        # [Klecio] Para a thread do painel de hardware e aguarda
+        # [Klecio] seu encerramento antes de fechar a janela.
+        self.thread_hardware.parar()
+        self.thread_hardware.wait(3000)
 
         # [Klecio] Só executa se houver worker ativo.
         if self.live_worker:
