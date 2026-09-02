@@ -94,6 +94,9 @@ class SoftIAVisualizer(QWidget):
         self.ativo = False
         # Texto de status exibido abaixo do título.
         self.status = "OFFLINE"
+        # Nome exibido no título central, já espaçado entre letras.
+        # Pode ser trocado em tempo real pela janela de Configurações.
+        self.nome_exibido = "S O F T I A"
 
         # Nível bruto de áudio recebido da thread.
         self.nivel_audio = 0.0
@@ -140,6 +143,22 @@ class SoftIAVisualizer(QWidget):
         self.status = str(
             texto
         ).upper()
+
+        # Solicita ao Qt uma nova pintura do componente.
+        self.update()
+
+    # Atualiza o nome exibido no título central da esfera.
+    def definir_nome(self, nome):
+        # Converte para maiúsculas e remove espaços extras nas pontas.
+        nome = str(
+            nome or "SOFTIA"
+        ).strip().upper() or "SOFTIA"
+
+        # Insere um espaço entre cada letra, como no visual original
+        # ("SOFTIA" -> "S O F T I A").
+        self.nome_exibido = " ".join(
+            list(nome)
+        )
 
         # Solicita ao Qt uma nova pintura do componente.
         self.update()
@@ -1373,7 +1392,7 @@ class SoftIAVisualizer(QWidget):
                 40,
             ),
             Qt.AlignCenter,
-            "S O F T I A",
+            self.nome_exibido,
         )
 
         # Cria a fonte usada no status.

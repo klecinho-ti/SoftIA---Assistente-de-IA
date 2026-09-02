@@ -53,9 +53,9 @@ from PySide6.QtCore import qInstallMessageHandler
 from PySide6.QtWidgets import QApplication
 
 # [Klecio] Funções que verificam se já existe uma chave de API
-# [Klecio] configurada neste computador e que salvam uma nova chave
-# [Klecio] informada pelo usuário na primeira execução.
-from core.api_key_manager import garantir_chave_api, salvar_chave
+# [Klecio] configurada neste computador e que salvam as configurações
+# [Klecio] informadas pelo usuário na primeira execução.
+from core.api_key_manager import garantir_chave_api, salvar_configuracoes
 
 
 # [Klecio] Esta função recebe todas as mensagens emitidas pelo Qt.
@@ -113,23 +113,23 @@ def main():
     if not garantir_chave_api():
         # [Klecio] Importa a janela de configuração apenas quando
         # [Klecio] realmente necessário.
-        from ui.api_key_dialog import ApiKeyDialog
+        from ui.settings_dialog import ConfiguracoesDialog
 
-        dialogo = ApiKeyDialog()
+        dialogo = ConfiguracoesDialog()
 
         # [Klecio] Se o usuário cancelar a janela, o SOFTIA
         # [Klecio] não tem como funcionar e a execução é encerrada.
-        if dialogo.exec() != ApiKeyDialog.Accepted:
+        if dialogo.exec() != ConfiguracoesDialog.Accepted:
             sys.exit(0)
 
-        # [Klecio] Salva a chave para as próximas execuções
-        # [Klecio] e a disponibiliza imediatamente para este processo.
-        salvar_chave(
-            dialogo.chave_informada
+        # [Klecio] Salva as configurações para as próximas execuções
+        # [Klecio] e disponibiliza a chave imediatamente para este processo.
+        salvar_configuracoes(
+            dialogo.configuracoes_confirmadas
         )
 
         os.environ["GEMINI_API_KEY"] = (
-            dialogo.chave_informada
+            dialogo.configuracoes_confirmadas["gemini_api_key"]
         )
 
     # [Klecio] Importa a janela principal da versão futurista.

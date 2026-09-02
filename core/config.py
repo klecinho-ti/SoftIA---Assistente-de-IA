@@ -1,6 +1,8 @@
 ﻿import os
 from dotenv import load_dotenv
 
+from core.api_key_manager import carregar_configuracoes
+
 load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -16,8 +18,38 @@ GEMINI_LIVE_MODEL = "gemini-3.1-flash-live-preview"
 #MODELO = "gemini-3.1-flash-live-preview"
 
 
-# Voz usada pelo SOFTIA
-GEMINI_VOICE = "Vindemiatrix"
+# Vozes oferecidas na janela de Configurações do SOFTIA.
+VOZ_FEMININA = "Vindemiatrix"
+VOZ_MASCULINA = "Puck"
+
+
+def obter_configuracoes_atuais():
+    """
+    Lê, em tempo real, as configurações mais recentes salvas pelo
+    usuário na janela de Configurações (nome da assistente, voz e
+    senha de autenticação).
+
+    Ler sempre do arquivo (em vez de guardar em uma constante fixa)
+    é o que permite que uma mudança feita na janela de Configurações
+    valha já na próxima chamada, sem reiniciar nem reinstalar o SOFTIA.
+    """
+
+    return carregar_configuracoes()
+
+
+def obter_voz_atual():
+    """
+    Retorna o nome técnico da voz do Gemini correspondente ao gênero
+    de voz escolhido pelo usuário (feminina ou masculina).
+    """
+
+    genero = obter_configuracoes_atuais()["voz_genero"]
+
+    return (
+        VOZ_MASCULINA
+        if genero == "masculina"
+        else VOZ_FEMININA
+    )
 
 # ============================================================
 # VOZES DISPONÍVEIS PARA TESTE

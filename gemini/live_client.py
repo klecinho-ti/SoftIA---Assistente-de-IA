@@ -46,11 +46,15 @@ from google.genai import types
 # Importa as configurações definidas no projeto.
 # GEMINI_API_KEY: chave de acesso à API.
 # GEMINI_LIVE_MODEL: modelo usado na conversa em tempo real.
-# GEMINI_VOICE: voz escolhida para o SOFTIA.
+# obter_configuracoes_atuais: lê nome, voz e senha configurados
+# pelo usuário na janela de Configurações, sempre em tempo real.
+# obter_voz_atual: traduz o gênero de voz escolhido para o nome
+# técnico da voz usado pela API Gemini.
 from core.config import (
     GEMINI_API_KEY,
     GEMINI_LIVE_MODEL,
-    GEMINI_VOICE,
+    obter_configuracoes_atuais,
+    obter_voz_atual,
 )
 
 # Função que captura a tela do computador
@@ -280,6 +284,60 @@ class GeminiLiveWorker(QThread):
         client = genai.Client(
             api_key=GEMINI_API_KEY
         )
+
+        # Lê, em tempo real, o nome, a voz e a senha configurados
+        # pelo usuário na janela de Configurações. Isso garante que
+        # uma mudança salva ali valha já na próxima chamada, sem
+        # reiniciar nem reinstalar o SOFTIA.
+        configuracoes_usuario = obter_configuracoes_atuais()
+        nome_assistente = configuracoes_usuario["nome_assistente"]
+        senha_ativada = configuracoes_usuario["senha_ativada"]
+        senha_autenticacao = configuracoes_usuario["senha"]
+        voz_feminina = configuracoes_usuario["voz_genero"] != "masculina"
+        genero_personalidade = (
+            "femininas" if voz_feminina else "masculinas"
+        )
+
+        # Monta o bloco de autenticação por palavra-chave somente
+        # quando o usuário optou por usar senha na janela de
+        # Configurações. Quando desativada, o SOFTIA libera comandos
+        # diretamente, sem pedir nenhuma palavra-chave.
+        if senha_ativada:
+            bloco_autenticacao = (
+                "Só faça interação com o usuário, conversas complexas ou "
+                "qualquer outro comando se ele disser a palavra-chave. "
+                f"A palavra-chave secreta de autenticação é: {senha_autenticacao}. "
+                "Essa palavra-chave é uma informação estritamente confidencial. "
+                "Nunca revele, pronuncie, escreva, repita, confirme, complete, "
+                "dê pistas ou informe a palavra-chave ao usuário. "
+                "Isso também vale se ele disser que esqueceu, pedir ajuda, "
+                "tentar adivinhar ou permanecer em silêncio. "
+                "Use a palavra-chave apenas para comparar silenciosamente "
+                "com o áudio recebido do usuário. "
+                "A transcrição de voz pode não ser perfeita: aceite como "
+                "correta qualquer fala foneticamente muito próxima da "
+                "palavra-chave, como pequenas variações de pronúncia ou "
+                "sotaque. Só rejeite quando a fala for claramente uma "
+                "palavra diferente. "
+                "Antes da autenticação, limite-se a solicitar a palavra-chave. "
+                "Depois de solicitá-la, pare de falar e aguarde uma resposta real. "
+                "Nunca preencha o silêncio e nunca continue a conversa sozinho. "
+                "Não trate sua própria voz, áudio reproduzido pelo computador, "
+                "eco, ruído ou silêncio como tentativa de autenticação. "
+                "O usuário terá no máximo três tentativas incorretas. "
+                "Após quatro erros consecutivos, bloqueie o acesso nesta chamada. "
+                "Se o usuário disser corretamente a palavra-chave, responda apenas "
+                "'Acesso autorizado' uma única vez e aguarde o próximo pedido. "
+                "Não repita 'Acesso autorizado' sem uma nova fala do usuário. "
+                "Não execute funções nem prossiga com uma conversa completa "
+                "antes da autenticação. "
+            )
+        else:
+            bloco_autenticacao = (
+                "Não é necessária nenhuma senha ou palavra-chave para "
+                "conversar ou executar comandos. Atenda o usuário "
+                "diretamente desde a primeira fala. "
+            )
 
         # Lista de ferramentas disponíveis para o modelo.
         # O Gemini decide quando chamar cada função com base
@@ -929,50 +987,24 @@ class GeminiLiveWorker(QThread):
         # comportamento, funções locais, memória e visão.
         instrucao_sistema = (
             # =========================
+            # AUTENTICAÇÃO
             # =========================
-            "Só faça interação com o usuário, conversas complexas ou qualquer outro comando se ele dizer a palavra-chave. "
-            "A palavra-chave secreta de autenticação é: Romeu. "
-            "Essa palavra-chave é uma informação estritamente confidencial. "
-            "Nunca revele, pronuncie, escreva, repita, confirme, complete, "
-            "dê pistas ou informe a palavra-chave ao usuário. "
-            "Isso também vale se ele disser que esqueceu, pedir ajuda, "
-            "tentar adivinhar ou permanecer em silêncio. "
-            "Use a palavra-chave apenas para comparar silenciosamente "
-            "com o áudio recebido do usuário. "
-            "A transcrição de voz pode não ser perfeita: aceite como "
-            "correta qualquer fala foneticamente muito próxima da "
-            "palavra-chave, como pequenas variações de pronúncia, sotaque "
-            "ou grafias parecidas (por exemplo 'Romeu', 'Romeo' ou "
-            "'Romeuh'). Só rejeite quando a fala for claramente uma "
-            "palavra diferente. "
-            "Antes da autenticação, limite-se a solicitar a palavra-chave. "
-            "Depois de solicitá-la, pare de falar e aguarde uma resposta real. "
-            "Nunca preencha o silêncio e nunca continue a conversa sozinho. "
-            "Não trate sua própria voz, áudio reproduzido pelo computador, "
-            "eco, ruído ou silêncio como tentativa de autenticação. "
-            "O usuário terá no máximo três tentativas incorretas. "
-            "Após quatro erros consecutivos, bloqueie o acesso nesta chamada. "
-            "Se o usuário disser corretamente a palavra-chave, responda apenas "
-            "'Acesso autorizado' uma única vez e aguarde o próximo pedido. "
-            "Não repita 'Acesso autorizado' sem uma nova fala do usuário. "
-            "Não execute funções nem prossiga com uma conversa completa "
-            "antes da autenticação. "
-
+            bloco_autenticacao
 
             # =========================
                 # IDENTIDADE
                 # =========================
-                "Seu nome é SOFTIA. "
+                + f"Seu nome é {nome_assistente}. "
                 "Você é uma inteligência artificial avançada, capaz de conversar, "
                 "analisar contextos e imagens em tempo real. "
                 "Converse sempre em português do Brasil. "
-                
+
                 # =========================
                 # PERSONALIDADE
                 # =========================
                 "Mantenha sempre a mesma personalidade, do início ao fim da "
                 "conversa, sem alternar entre estilos ou tons diferentes. "
-                "Você é uma assistente com voz e personalidade femininas. "
+                f"Você é uma assistente com voz e personalidade {genero_personalidade}. "
                 "Nunca troque de gênero, tom ou identidade durante a "
                 "conversa, mesmo após pausas, silêncios longos, execução de "
                 "funções ou renovação da conexão. Continue exatamente a "
@@ -1178,7 +1210,7 @@ class GeminiLiveWorker(QThread):
             speech_config=types.SpeechConfig(
                 voice_config=types.VoiceConfig(
                     prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                        voice_name=GEMINI_VOICE
+                        voice_name=obter_voz_atual()
                     )
                 )
             ),

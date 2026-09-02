@@ -1,4 +1,12 @@
-﻿# [Klecio] Qt fornece constantes do framework PySide6.
+﻿# [Klecio] os é usado para atualizar a chave de API em memória
+# [Klecio] imediatamente após salvar as Configurações.
+import os
+
+# [Klecio] psutil fornece o uso atual de CPU, memória e disco
+# [Klecio] para o painel de hardware ao vivo do painel lateral.
+import psutil
+
+# [Klecio] Qt fornece constantes do framework PySide6.
 # [Klecio] Neste arquivo, Qt.AlignCenter é usado para centralizar textos.
 from PySide6.QtCore import Qt, QTimer
 
@@ -24,6 +32,13 @@ from gemini.live_client import GeminiLiveWorker
 # [Klecio] Importa o visualizador futurista que desenha a esfera,
 # [Klecio] os anéis, o status e a animação de áudio.
 from ui.softia_visualizer import SoftIAVisualizer
+# [Klecio] Importa a janela de Configurações, que permite trocar a
+# [Klecio] chave de API, o nome da assistente, a voz e a senha de
+# [Klecio] autenticação a qualquer momento, sem reinstalar o SOFTIA.
+from ui.settings_dialog import ConfiguracoesDialog
+# [Klecio] Funções que leem e salvam as configurações do usuário
+# [Klecio] no config.json local.
+from core.api_key_manager import carregar_configuracoes, salvar_configuracoes
 
 
 # [Klecio] A variável abaixo contém todo o QSS da interface.
@@ -142,11 +157,6 @@ class MainWindow(QMainWindow):
         # [Klecio] Inicializa corretamente a classe QMainWindow.
         super().__init__()
 
-        # [Klecio] Define o título mostrado na barra superior da janela.
-        self.setWindowTitle(
-            "SOFTIA // Neural Desktop Assistant"
-        )
-
         # [Klecio] Impede que a janela seja reduzida abaixo deste tamanho.
         self.setMinimumSize(
             1000,
@@ -172,6 +182,12 @@ class MainWindow(QMainWindow):
 
         # [Klecio] Chama o método que monta toda a interface.
         self._criar_interface()
+
+        # [Klecio] Aplica o nome salvo pelo usuário (ou "SOFTIA" por
+        # [Klecio] padrão) no título da janela e no visualizador.
+        self._aplicar_nome_assistente(
+            carregar_configuracoes()["nome_assistente"]
+        )
 
     # [Klecio] Cria os painéis, layouts, textos, botões,
     # [Klecio] log e visualizador do SOFTIA.
@@ -290,6 +306,12 @@ class MainWindow(QMainWindow):
             "◉  ANALISAR CÂMERA"
         )
 
+        # [Klecio] Botão que reabre a janela de Configurações a
+        # [Klecio] qualquer momento, sem precisar reinstalar o SOFTIA.
+        self.btn_configuracoes = QPushButton(
+            "⚙  CONFIGURAÇÕES"
+        )
+
         # [Klecio] Título da área de eventos do sistema.
         log_titulo = QLabel(
             "EVENT STREAM"
@@ -357,6 +379,11 @@ class MainWindow(QMainWindow):
             self.btn_camera
         )
 
+        # [Klecio] Adiciona um widget ao layout lateral na ordem definida.
+        layout_lateral.addWidget(
+            self.btn_configuracoes
+        )
+
         # [Klecio] Adiciona um espaço fixo entre grupos de componentes.
         layout_lateral.addSpacing(
             10
@@ -371,6 +398,76 @@ class MainWindow(QMainWindow):
         layout_lateral.addWidget(
             self.log_box,
             1,
+        )
+
+        # [Klecio] Título da área de hardware ao vivo, logo abaixo
+        # [Klecio] do EVENT STREAM.
+        hardware_titulo = QLabel(
+            "HARDWARE"
+        )
+
+        hardware_titulo.setObjectName(
+            "subtituloPainel"
+        )
+
+        hardware_titulo.setAlignment(
+            Qt.AlignCenter
+        )
+
+        # [Klecio] Rótulos que mostram o uso atual de CPU, memória
+        # [Klecio] RAM e disco, atualizados periodicamente.
+        self.label_cpu = QLabel("CPU: --%")
+        self.label_ram = QLabel("RAM: --%")
+        self.label_disco = QLabel("Disco: --%")
+
+        for rotulo_hardware in (
+            self.label_cpu,
+            self.label_ram,
+            self.label_disco,
+        ):
+            rotulo_hardware.setAlignment(
+                Qt.AlignCenter
+            )
+
+            rotulo_hardware.setStyleSheet(
+                "color: #8c8c94; font-family: 'Consolas'; font-size: 11px;"
+            )
+
+        layout_lateral.addSpacing(
+            10
+        )
+
+        layout_lateral.addWidget(
+            hardware_titulo
+        )
+
+        layout_lateral.addWidget(
+            self.label_cpu
+        )
+
+        layout_lateral.addWidget(
+            self.label_ram
+        )
+
+        layout_lateral.addWidget(
+            self.label_disco
+        )
+
+        # [Klecio] Referência de uso de CPU exigida pelo psutil antes
+        # [Klecio] da primeira leitura confiável.
+        psutil.cpu_percent(
+            interval=None
+        )
+
+        # [Klecio] Timer que atualiza o painel de hardware a cada 2 segundos.
+        self.timer_hardware = QTimer(self)
+
+        self.timer_hardware.timeout.connect(
+            self._atualizar_hardware
+        )
+
+        self.timer_hardware.start(
+            2000
         )
 
         # [Klecio] Cria o painel que receberá o visualizador futurista.
@@ -431,6 +528,11 @@ class MainWindow(QMainWindow):
         # [Klecio] Liga o botão da câmera ao método analisar_camera.
         self.btn_camera.clicked.connect(
             self.analisar_camera
+        )
+
+        # [Klecio] Liga o botão de Configurações à janela de Configurações.
+        self.btn_configuracoes.clicked.connect(
+            self.abrir_configuracoes
         )
 
     # [Klecio] Acrescenta uma mensagem ao registro de atividades.
@@ -706,9 +808,83 @@ class MainWindow(QMainWindow):
         # [Klecio] Encaminha o pedido de câmera para a thread Gemini.
         self.live_worker.solicitar_analise_camera()
 
+    # [Klecio] Atualiza os rótulos de CPU, RAM e disco do painel de hardware.
+    def _atualizar_hardware(self):
+        try:
+            uso_cpu = psutil.cpu_percent(
+                interval=None
+            )
+
+            memoria = psutil.virtual_memory()
+            disco = psutil.disk_usage("C:\\")
+
+        # [Klecio] Se a leitura falhar por qualquer motivo, mantém os
+        # [Klecio] últimos valores exibidos em vez de quebrar a interface.
+        except Exception:
+            return
+
+        self.label_cpu.setText(
+            f"CPU: {uso_cpu:.0f}%"
+        )
+
+        self.label_ram.setText(
+            f"RAM: {memoria.percent:.0f}%"
+        )
+
+        self.label_disco.setText(
+            f"Disco: {disco.percent:.0f}%"
+        )
+
+    # [Klecio] Atualiza o título da janela e o texto central do
+    # [Klecio] visualizador com o nome configurado pelo usuário.
+    def _aplicar_nome_assistente(self, nome):
+        nome = str(
+            nome or "SOFTIA"
+        ).strip() or "SOFTIA"
+
+        self.setWindowTitle(
+            f"{nome.upper()} // Neural Desktop Assistant"
+        )
+
+        self.visualizador.definir_nome(
+            nome
+        )
+
+    # [Klecio] Abre a janela de Configurações e aplica as mudanças
+    # [Klecio] salvas imediatamente, sem reiniciar nem reinstalar o SOFTIA.
+    def abrir_configuracoes(self):
+        configuracoes_atuais = carregar_configuracoes()
+
+        dialogo = ConfiguracoesDialog(
+            self,
+            configuracoes_atuais=configuracoes_atuais,
+        )
+
+        if dialogo.exec() != ConfiguracoesDialog.Accepted:
+            return
+
+        novas_configuracoes = salvar_configuracoes(
+            dialogo.configuracoes_confirmadas
+        )
+
+        os.environ["GEMINI_API_KEY"] = (
+            novas_configuracoes["gemini_api_key"]
+        )
+
+        self._aplicar_nome_assistente(
+            novas_configuracoes["nome_assistente"]
+        )
+
+        self.escrever_log(
+            "Configurações salvas."
+        )
+
     # [Klecio] Evento executado automaticamente ao fechar a janela.
     # [Klecio] Ele garante que a thread não permaneça rodando em segundo plano.
     def closeEvent(self, event):
+        # [Klecio] Para o timer do painel de hardware.
+        self.timer_hardware.stop()
+
         # [Klecio] Só executa se houver worker ativo.
         if self.live_worker:
             # [Klecio] Altera o estado interno do worker para finalizar os loops.

@@ -24,17 +24,24 @@ PASTA_CONFIG = Path(
 
 ARQUIVO_CONFIG = PASTA_CONFIG / "config.json"
 
+# Valores usados quando o usuário ainda não configurou estas opções
+# (instalações novas) ou quando o config.json é de uma versão anterior
+# do SOFTIA que ainda não tinha estes campos (instalações antigas).
+NOME_ASSISTENTE_PADRAO = "SOFTIA"
+VOZ_GENERO_PADRAO = "feminina"
+SENHA_PADRAO = "Romeu"
 
-def carregar_chave_salva():
+
+def _ler_config_bruto():
     """
-    Lê a chave de API salva localmente em uma execução anterior.
+    Lê o conteúdo bruto do config.json salvo localmente.
 
-    Retorna uma string vazia caso o arquivo não exista,
-    esteja corrompido ou não contenha uma chave válida.
+    Retorna um dicionário vazio caso o arquivo não exista,
+    esteja corrompido ou não contenha um objeto JSON válido.
     """
 
     if not ARQUIVO_CONFIG.exists():
-        return ""
+        return {}
 
     try:
         conteudo = ARQUIVO_CONFIG.read_text(
@@ -45,26 +52,62 @@ def carregar_chave_salva():
         )
 
     except (OSError, json.JSONDecodeError):
-        return ""
+        return {}
 
-    if not isinstance(dados, dict):
-        return ""
-
-    return str(
-        dados.get(
-            "gemini_api_key",
-            "",
-        )
-    ).strip()
+    return dados if isinstance(dados, dict) else {}
 
 
-def salvar_chave(chave):
+def carregar_configuracoes():
     """
-    Salva a chave de API informada pelo usuário neste computador,
-    para que ele não precise digitá-la novamente nas próximas vezes.
+    Lê todas as configurações do SOFTIA salvas neste computador:
+    chave de API, nome da assistente, gênero da voz e senha de
+    autenticação.
+
+    Aplica valores padrão para qualquer campo ausente, o que também
+    mantém instalações antigas (de antes destas opções existirem)
+    funcionando exatamente como antes, sem pedir reconfiguração.
     """
 
-    chave = str(chave or "").strip()
+    dados = _ler_config_bruto()
+
+    voz_genero = dados.get("voz_genero")
+    if voz_genero not in ("feminina", "masculina"):
+        voz_genero = VOZ_GENERO_PADRAO
+
+    return {
+        "gemini_api_key": str(
+            dados.get("gemini_api_key", "")
+        ).strip(),
+        "nome_assistente": str(
+            dados.get("nome_assistente", "")
+        ).strip() or NOME_ASSISTENTE_PADRAO,
+        "voz_genero": voz_genero,
+        "senha_ativada": bool(
+            dados.get("senha_ativada", True)
+        ),
+        "senha": str(
+            dados.get("senha", "")
+        ).strip() or SENHA_PADRAO,
+    }
+
+
+def salvar_configuracoes(novas_configuracoes):
+    """
+    Salva as configurações informadas neste computador, mesclando com
+    o que já estava salvo (para não apagar campos não enviados desta vez).
+
+    Retorna o dicionário completo já salvo, com os padrões aplicados.
+    """
+
+    atuais = carregar_configuracoes()
+
+    atuais.update(
+        {
+            chave: valor
+            for chave, valor in novas_configuracoes.items()
+            if valor is not None
+        }
+    )
 
     PASTA_CONFIG.mkdir(
         parents=True,
@@ -73,14 +116,14 @@ def salvar_chave(chave):
 
     ARQUIVO_CONFIG.write_text(
         json.dumps(
-            {
-                "gemini_api_key": chave,
-            },
+            atuais,
             ensure_ascii=False,
             indent=2,
         ),
         encoding="utf-8",
     )
+
+    return atuais
 
 
 def garantir_chave_api():
@@ -92,7 +135,7 @@ def garantir_chave_api():
     1. Variável de ambiente já definida (ex: .env usado em desenvolvimento);
     2. Chave salva localmente em uma execução anterior deste instalador;
     3. Nenhuma chave encontrada — quem chamou esta função deve pedir
-       a chave ao usuário e, em seguida, chamar salvar_chave().
+       a chave ao usuário e, em seguida, chamar salvar_configuracoes().
 
     Retorna a chave encontrada, ou uma string vazia se nenhuma existir.
     """
@@ -109,7 +152,7 @@ def garantir_chave_api():
     if chave_ambiente:
         return chave_ambiente
 
-    chave_salva = carregar_chave_salva()
+    chave_salva = carregar_configuracoes()["gemini_api_key"]
 
     if chave_salva:
         # Disponibiliza a chave para os demais módulos do SOFTIA,
