@@ -202,9 +202,14 @@ class GeminiLiveWorker(QThread):
     # da sessão, preservando o contexto da conversa.
     session_handle_atualizado = Signal(str)
 
+    # Informa à interface se o modo silêncio está ativo, para que
+    # uma reconexão automática (renovação do WebSocket) repasse o
+    # mesmo estado à nova instância em vez de reiniciar falando.
+    modo_silencio_atualizado = Signal(bool)
+
     # Construtor da classe.
     # Define todos os estados usados durante a chamada.
-    def __init__(self, session_handle=None):
+    def __init__(self, session_handle=None, modo_silencio=False):
         super().__init__()
 
         # Enquanto True, a sessão continua rodando.
@@ -217,6 +222,13 @@ class GeminiLiveWorker(QThread):
         self.processando_ferramenta = False
         self.lock_envio = None
         self.imagem_visual_pendente = None
+
+        # Quando True, o SOFTIA não fala nem executa ações, exceto
+        # reconhecer o próprio nome sendo chamado. Recebido como
+        # parâmetro para sobreviver a reconexões automáticas
+        # (o servidor renova a conexão periodicamente e o estado
+        # precisa ser repassado para a nova instância).
+        self.modo_silencio = modo_silencio
 
         # Evita processar mais de um aviso GoAway para
         # a mesma conexão.
@@ -672,6 +684,35 @@ class GeminiLiveWorker(QThread):
                     # Cada FunctionDeclaration descreve uma função local
                     # que poderá ser solicitada pelo modelo.
                     types.FunctionDeclaration(
+                        name="ficar_silencio",
+                        description=(
+                            "Ativa o modo silêncio. Use somente quando o "
+                            "usuário pedir explicitamente para ficar quieto, "
+                            "calado ou em silêncio, e só voltar a falar "
+                            "quando for chamado pelo nome. Depois desta "
+                            "chamada, não fale mais nada nem execute outras "
+                            "ações até detectar seu próprio nome sendo dito, "
+                            "mesmo que outras pessoas continuem conversando "
+                            "por perto."
+                        ),
+                    ),
+
+                    # Cada FunctionDeclaration descreve uma função local
+                    # que poderá ser solicitada pelo modelo.
+                    types.FunctionDeclaration(
+                        name="sair_do_silencio",
+                        description=(
+                            "Sai do modo silêncio. Use somente quando o "
+                            "modo silêncio estiver ativo e você reconhecer "
+                            "claramente seu próprio nome sendo chamado pelo "
+                            "usuário. Depois desta chamada, cumprimente o "
+                            "usuário normalmente e volte a responder."
+                        ),
+                    ),
+
+                    # Cada FunctionDeclaration descreve uma função local
+                    # que poderá ser solicitada pelo modelo.
+                    types.FunctionDeclaration(
                         name="enviar_mensagem_whatsapp",
                         description=(
                             "Abre o WhatsApp Desktop, localiza a conversa "
@@ -1072,6 +1113,18 @@ class GeminiLiveWorker(QThread):
                 "peça para repetir em vez de mudar de assunto. "
                
                
+
+                # =========================
+                # MODO SILÊNCIO
+                # =========================
+                "Se o usuário pedir para você ficar quieta, calada ou em "
+                "silêncio e só voltar a falar quando for chamada pelo nome, "
+                "chame a função ficar_silencio. A partir daí, mesmo "
+                "ouvindo outras vozes ou conversas por perto, não fale "
+                "nada e não execute nenhuma ação, até reconhecer "
+                f"claramente seu próprio nome, {nome_assistente}, sendo "
+                "dito pelo usuário. Quando isso acontecer, chame a função "
+                "sair_do_silencio e cumprimente o usuário normalmente. "
 
                 # =========================
                 # FUNÇÕES LOCAIS
@@ -1520,9 +1573,16 @@ class GeminiLiveWorker(QThread):
 
                 # resposta.data contém bytes de áudio gerados pelo Gemini.
                 if resposta.data:
-                    # Só reproduz quando o turno não foi marcado
-                    # para permanecer em silêncio.
-                    if not self.silenciar_audio_ate_fim_turno:
+                    # Só reproduz quando o turno não foi marcado para
+                    # permanecer em silêncio, e quando o modo silêncio
+                    # não estiver ativo. Esta segunda trava é o que
+                    # impede o SOFTIA de voltar a falar sozinha durante
+                    # o modo silêncio, mesmo que o modelo gere áudio
+                    # sem ter chamado sair_do_silencio.
+                    if (
+                        not self.silenciar_audio_ate_fim_turno
+                        and not self.modo_silencio
+                    ):
                         # Bloqueia o microfone assim que o primeiro bloco
                         # chega, antes mesmo de ele ser reproduzido.
                         self.softia_falando = True
@@ -1634,8 +1694,52 @@ class GeminiLiveWorker(QThread):
                     chamada.args or {}
                 )
 
+                # Ativa o modo silêncio: nenhuma resposta falada nem
+                # execução de outras ações até o próprio nome ser
+                # reconhecido. Sempre permitida, mesmo com o modo já
+                # ativo, mesmo com o modo silêncio ativo.
+                if nome == "ficar_silencio":
+                    self.modo_silencio = True
+                    self.modo_silencio_atualizado.emit(True)
+
+                    # Não fala a confirmação: a ativação é silenciosa
+                    # por design, para não arriscar falar algo logo
+                    # depois de ser pedida para ficar quieta.
+                    self.silenciar_audio_ate_fim_turno = True
+
+                    self.status_recebido.emit(
+                        "Modo silêncio ativado. Só volto a falar "
+                        "quando for chamada pelo nome."
+                    )
+
+                    resultado = "Modo silêncio ativado."
+
+                # Sai do modo silêncio ao reconhecer o próprio nome.
+                # Sempre permitida, independente do estado atual.
+                elif nome == "sair_do_silencio":
+                    self.modo_silencio = False
+                    self.modo_silencio_atualizado.emit(False)
+
+                    self.status_recebido.emit(
+                        "Modo silêncio desativado."
+                    )
+
+                    resultado = (
+                        "Modo silêncio desativado. "
+                        "Cumprimente o usuário normalmente."
+                    )
+
+                # Enquanto o modo silêncio estiver ativo, qualquer outra
+                # função solicitada é ignorada. Isso é a trava real que
+                # impede o SOFTIA de responder a conversas de terceiros
+                # mesmo que o modelo "esqueça" a instrução do prompt.
+                elif self.modo_silencio:
+                    resultado = (
+                        "Modo silêncio ativo. Nenhuma ação foi executada."
+                    )
+
                 # Trata as funções de visão em um bloco específico.
-                if nome in (
+                elif nome in (
                     "analisar_tela",
                     "analisar_camera",
                 ):

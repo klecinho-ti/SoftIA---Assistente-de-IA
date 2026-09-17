@@ -233,6 +233,9 @@ class MainWindow(QMainWindow):
         self.session_handle = None
         self.reconectar_automaticamente = False
         self.encerramento_manual = False
+        # Repassado a cada reconexão automática, para que o modo
+        # silêncio não seja perdido quando o servidor renova a conexão.
+        self.modo_silencio = False
 
         # [Klecio] Aplica o QSS completo armazenado em ESTILO_GLOBAL.
         self.setStyleSheet(
@@ -646,7 +649,8 @@ class MainWindow(QMainWindow):
         # [Klecio] Cria a thread responsável pela chamada Gemini Live.
         self.encerramento_manual = False
         self.live_worker = GeminiLiveWorker(
-            session_handle=self.session_handle
+            session_handle=self.session_handle,
+            modo_silencio=self.modo_silencio,
         )
 
         # [Klecio] Encaminha mensagens de status para atualizar_status.
@@ -678,6 +682,17 @@ class MainWindow(QMainWindow):
         self.live_worker.session_handle_atualizado.connect(
             self.salvar_session_handle
         )
+
+        # Mantém o estado do modo silêncio sincronizado, para que uma
+        # reconexão automática (renovação do WebSocket) o repasse à
+        # nova instância em vez de reiniciar falando.
+        if hasattr(
+            self.live_worker,
+            "modo_silencio_atualizado",
+        ):
+            self.live_worker.modo_silencio_atualizado.connect(
+                self.salvar_modo_silencio
+            )
 
         # [Klecio] Verifica se esta versão do worker possui o sinal nivel_audio.
         if hasattr(
@@ -713,6 +728,7 @@ class MainWindow(QMainWindow):
             # Encerramento solicitado pelo usuário finaliza a conversa atual.
             # Apenas GoAway/erro automático preserva o session_handle.
             self.session_handle = None
+            self.modo_silencio = False
             self.visualizador.definir_status(
                 "ENCERRANDO CONEXÃO"
             )
@@ -826,6 +842,11 @@ class MainWindow(QMainWindow):
     def salvar_session_handle(self, handle):
         if handle:
             self.session_handle = handle
+
+    # Guarda o estado atual do modo silêncio para repassar
+    # à próxima instância do worker em uma reconexão automática.
+    def salvar_modo_silencio(self, ativo):
+        self.modo_silencio = ativo
 
     # [Klecio] Solicita ao worker a captura e análise da tela.
     def analisar_tela(self):
