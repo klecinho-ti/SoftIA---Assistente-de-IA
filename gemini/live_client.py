@@ -2342,11 +2342,16 @@ class GeminiLiveWorker(QThread):
         fila_microfone,
     ):
         # Abre o dispositivo de saída em PCM bruto.
+        # latency="high" pede ao driver de áudio uma margem maior de
+        # buffer antes de tocar cada bloco. Sem isso, qualquer pequena
+        # variação no tempo de chegada dos blocos vindos do Gemini
+        # (rede) causa cortes perceptíveis ("áudio picado").
         with sd.RawOutputStream(
             samplerate=TAXA_SAIDA,
             blocksize=BLOCO,
             dtype="int16",
             channels=CANAIS,
+            latency="high",
         ) as saida:
             # Continua lendo e enviando áudio enquanto a sessão estiver ativa.
             while self.ativo:
