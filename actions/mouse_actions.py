@@ -41,6 +41,14 @@ MOUSEEVENTF_WHEEL = 0x0800
 # Um "clique" da roda corresponde a 120 unidades na API do Windows.
 WHEEL_DELTA = 120
 
+# Índices do GetSystemMetrics que descrevem a área virtual do Windows,
+# ou seja, o retângulo que engloba TODOS os monitores conectados,
+# não apenas o monitor principal.
+SM_XVIRTUALSCREEN = 76
+SM_YVIRTUALSCREEN = 77
+SM_CXVIRTUALSCREEN = 78
+SM_CYVIRTUALSCREEN = 79
+
 
 # Evita diferenças de coordenadas causadas pela escala (DPI)
 # utilizada pelo Windows.
@@ -172,12 +180,18 @@ def mover_e_clicar(x, y, duracao=0.35):
     except (TypeError, ValueError):
         return "Coordenadas inválidas. Nenhum clique foi executado."
 
-    # Obtém a resolução atual do monitor.
-    largura = _USER32.GetSystemMetrics(0)
-    altura = _USER32.GetSystemMetrics(1)
+    # Obtém os limites da área virtual, cobrindo todos os monitores
+    # conectados (e não somente o monitor principal).
+    virtual_esquerda = _USER32.GetSystemMetrics(SM_XVIRTUALSCREEN)
+    virtual_topo = _USER32.GetSystemMetrics(SM_YVIRTUALSCREEN)
+    virtual_largura = _USER32.GetSystemMetrics(SM_CXVIRTUALSCREEN)
+    virtual_altura = _USER32.GetSystemMetrics(SM_CYVIRTUALSCREEN)
 
-    # Verifica se o ponto informado existe dentro da tela.
-    if not (0 <= x < largura and 0 <= y < altura):
+    # Verifica se o ponto informado existe dentro de algum monitor.
+    if not (
+        virtual_esquerda <= x < virtual_esquerda + virtual_largura
+        and virtual_topo <= y < virtual_topo + virtual_altura
+    ):
         return "Coordenadas fora da tela. Nenhum clique foi executado."
 
     # Estrutura POINT utilizada pela API do Windows.

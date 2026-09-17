@@ -26,8 +26,10 @@ def capturar_tela_bytes():
     with mss.mss() as sct:
 
         # [Klecio] monitors[1] normalmente representa o monitor principal.
-        # [Klecio] monitors[0] corresponde à área virtual de todos os monitores.
-        monitor = sct.monitors[1]
+        # [Klecio] monitors[0] corresponde à área virtual de todos os monitores,
+        # [Klecio] garantindo que a IA enxergue qualquer monitor em uso,
+        # [Klecio] não só o principal.
+        monitor = sct.monitors[0]
 
         # [Klecio] Captura todos os pixels do monitor escolhido.
         screenshot = sct.grab(

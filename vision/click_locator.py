@@ -75,7 +75,7 @@ def _alvo_bloqueado(alvo):
     )
 
 
-# [Klecio] Captura somente o monitor principal
+# [Klecio] Captura toda a área virtual (todos os monitores)
 # [Klecio] e devolve a imagem, resolução e posição na área virtual.
 def _capturar_tela_principal():
     # [Klecio] Abre o capturador de tela.
@@ -83,7 +83,9 @@ def _capturar_tela_principal():
     with mss.mss() as sct:
         # [Klecio] No mss, monitors[1] normalmente representa
         # [Klecio] o primeiro monitor físico, considerado o principal.
-        monitor = sct.monitors[1]
+        # [Klecio] monitors[0] é a área virtual de todos os monitores juntos,
+        # [Klecio] usada aqui para que o clique visual funcione em qualquer tela.
+        monitor = sct.monitors[0]
         # [Klecio] Captura todos os pixels da área do monitor.
         captura = sct.grab(monitor)
 
