@@ -52,6 +52,19 @@ Passo a passo:
 
 Na primeira execução, o SOFTIA abre a janela de **Configurações**, onde o usuário informa a chave de API do Gemini e pode personalizar o nome da assistente, a voz e a senha de autenticação. Tudo é salvo localmente em `%APPDATA%\SoftIA\`, sem precisar de nenhuma configuração manual de ambiente. Essa janela pode ser reaberta a qualquer momento pelo botão **Configurações** na barra lateral, e qualquer mudança vale imediatamente, sem reinstalar o programa.
 
+### Solução de problemas
+
+**"Incapaz de executar o arquivo no diretório temporário. Instalação abortada. Erro 4551: Uma política de Controle de Aplicativo bloqueou este arquivo."**
+
+Esse erro aparece porque o instalador ainda não possui assinatura digital (code signing), e o **Smart App Control** do Windows bloqueia por padrão a execução de arquivos desconhecidos/não assinados. Para instalar mesmo assim:
+
+1. Abra **Configurações** → **Privacidade e segurança** → **Segurança do Windows**
+2. Clique em **Controle de aplicativos e navegador**
+3. Em **Smart App Control**, clique em **Configurações do Smart App Control**
+4. Mude para **Desativado**
+
+⚠️ O Windows avisa que, uma vez desativado, o Smart App Control só volta a ficar disponível reinstalando o Windows do zero — é uma decisão permanente até lá.
+
 ### Publicando uma nova versão (para o mantenedor)
 
 Sempre que gerar uma nova build do instalador, publique como uma nova Release para que o `.exe` fique disponível para download (o código-fonte sozinho não é suficiente):
