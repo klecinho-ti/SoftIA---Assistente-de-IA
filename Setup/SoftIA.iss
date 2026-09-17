@@ -21,7 +21,7 @@
 ; ============================================================
 
 #define MyAppName "SoftIA"
-#define MyAppVersion "1.9.2.3 - Beta"
+#define MyAppVersion "1.9.2.4"
 #define MyAppPublisher "Klecio Mauricio"
 #define MyAppExeName "SoftIA.exe"
 
