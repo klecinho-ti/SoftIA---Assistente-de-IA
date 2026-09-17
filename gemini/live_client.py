@@ -109,6 +109,10 @@ from actions.mouse_actions import (
 # um elemento visível na tela com base em uma descrição.
 from vision.click_locator import localizar_elemento_na_tela
 
+# Função que orquestra o envio de mensagens de texto pelo
+# WhatsApp Desktop, combinando visão computacional e automação.
+from actions.whatsapp_actions import enviar_mensagem_whatsapp
+
 # Funções da memória persistente.
 # Elas permitem salvar, listar, remover e carregar memórias.
 from memory.memory_manager import (
@@ -668,6 +672,41 @@ class GeminiLiveWorker(QThread):
                     # Cada FunctionDeclaration descreve uma função local
                     # que poderá ser solicitada pelo modelo.
                     types.FunctionDeclaration(
+                        name="enviar_mensagem_whatsapp",
+                        description=(
+                            "Abre o WhatsApp Desktop, localiza a conversa "
+                            "de um contato ou grupo pelo nome e envia uma "
+                            "mensagem de texto. Use somente quando o usuário "
+                            "pedir explicitamente para mandar, enviar ou "
+                            "escrever uma mensagem no WhatsApp para alguém. "
+                            "Não oferece envio de áudio."
+                        ),
+                        # Schema define os parâmetros esperados pela função.
+                        # Isso ajuda o modelo a enviar argumentos corretos.
+                        parameters=types.Schema(
+                            type="OBJECT",
+                            properties={
+                                "contato": types.Schema(
+                                    type="STRING",
+                                    description=(
+                                        "Nome do contato ou grupo do "
+                                        "WhatsApp que deve receber a mensagem."
+                                    ),
+                                ),
+                                "mensagem": types.Schema(
+                                    type="STRING",
+                                    description=(
+                                        "Texto exato da mensagem a ser enviada."
+                                    ),
+                                ),
+                            },
+                            required=["contato", "mensagem"],
+                        ),
+                    ),
+
+                    # Cada FunctionDeclaration descreve uma função local
+                    # que poderá ser solicitada pelo modelo.
+                    types.FunctionDeclaration(
                         name="pesquisar_no_navegador",
                         description=(
                             "Abre uma pesquisa no Google usando o navegador padrão. "
@@ -1221,12 +1260,20 @@ class GeminiLiveWorker(QThread):
             # o que gera um atraso perceptível logo após um silêncio.
             # Sensibilidade alta e um prefixo curto fazem o SOFTIA
             # perceber o início da fala mais rapidamente.
+            # O fim da fala também precisa de sensibilidade alta e um
+            # silêncio curto: sem isso, o Gemini usa o padrão da API
+            # (mais conservador) e demora perceptivelmente mais para
+            # começar a responder depois que o usuário para de falar.
             realtime_input_config=types.RealtimeInputConfig(
                 automatic_activity_detection=types.AutomaticActivityDetection(
                     start_of_speech_sensitivity=(
                         types.StartSensitivity.START_SENSITIVITY_HIGH
                     ),
                     prefix_padding_ms=100,
+                    end_of_speech_sensitivity=(
+                        types.EndSensitivity.END_SENSITIVITY_HIGH
+                    ),
+                    silence_duration_ms=500,
                 )
             ),
 
@@ -1773,6 +1820,33 @@ class GeminiLiveWorker(QThread):
                         abrir_aplicativo,
                         nome_app,
                         timeout=15,
+                    )
+
+                # Envia uma mensagem de texto pelo WhatsApp Desktop.
+                elif nome == "enviar_mensagem_whatsapp":
+                    contato = args.get(
+                        "contato",
+                        "",
+                    )
+                    mensagem_whats = args.get(
+                        "mensagem",
+                        "",
+                    )
+
+                    # A automação envolve vários cliques guiados por
+                    # visão computacional; a resposta falada só faz
+                    # sentido depois que tudo terminar.
+                    self.silenciar_audio_ate_fim_turno = True
+
+                    self.status_recebido.emit(
+                        f"Enviando mensagem no WhatsApp para {contato}..."
+                    )
+
+                    resultado = await self.executar_funcao_local(
+                        enviar_mensagem_whatsapp,
+                        contato,
+                        mensagem_whats,
+                        timeout=45,
                     )
 
                 # Abre uma pesquisa no navegador padrão.
