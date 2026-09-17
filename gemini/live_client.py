@@ -1345,6 +1345,33 @@ class GeminiLiveWorker(QThread):
                 ),
             ]
 
+            # Faz o SOFTIA se apresentar por voz assim que a conexão
+            # é aberta, sem esperar o usuário falar primeiro.
+            # Só acontece na primeira conexão desta chamada: em uma
+            # reconexão automática (session_handle já existente) a
+            # conversa é retomada normalmente, sem repetir a apresentação.
+            if not self.session_handle:
+                async with self.lock_envio:
+                    await sessao.send_client_content(
+                        turns=[
+                            types.Content(
+                                role="user",
+                                parts=[
+                                    types.Part(
+                                        text=(
+                                            "[Início da chamada] Apresente-se "
+                                            "brevemente pelo seu nome e "
+                                            "pergunte como pode ajudar. "
+                                            "Siga as regras de autenticação "
+                                            "definidas nas suas instruções."
+                                        )
+                                    )
+                                ],
+                            )
+                        ],
+                        turn_complete=True,
+                    )
+
             # Monitora as tarefas. Se qualquer tarefa interna falhar,
             # a conexão deixa de aparecer falsamente como ativa.
             while self.ativo:
