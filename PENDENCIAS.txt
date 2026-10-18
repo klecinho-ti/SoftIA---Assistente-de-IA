@@ -1,0 +1,53 @@
+PENDÊNCIAS - Portar funções do JARVIS pro SoftIA (Codex -> Gemini, sem VPS)
+Atualizado em: 19/09/2026
+
+JÁ FEITO:
+[x] Visual ciano/preto estilo JARVIS (main_window.py, settings_dialog.py)
+[x] escrever_codigo (code_actions.py) - gera código com Gemini, salva na Área de Trabalho
+[x] Controle de mídia (media_actions.py) - pausar/continuar, próxima faixa, volume, fechar aba/app ativo
+[x] fechar_janela (janela_actions.py) - fecha janela/pasta/app pelo nome, mesmo sem estar em foco
+[x] executar_tarefa_por_comando (comando_actions.py) - Gemini escreve comando PowerShell, roda com freio de segurança (testado: bloqueia shutdown, não bloqueia Format-Table)
+[x] digitar_ao_vivo (digitacao_actions.py) - digita caractere por caractere na janela pedida. Reescrito com ctypes puro (JARVIS usava pywin32, que o SoftIA não tem); conteúdo já vem pronto da própria Gemini Live, sem precisar de um segundo cérebro
+[x] usar_computador (actions/usar_computador.py) - computer use completo: loop de tirar foto,
+    perguntar pro Gemini (não Codex/VPS) o próximo passo em JSON, clicar/digitar/arrastar/rolar
+    e conferir se a tela mudou, até terminar ou desistir. Mira do clique é direto por coordenada
+    normalizada (0-1000) que o Gemini aponta na foto, já que o SoftIA não tem UI Automation
+    (pywin32) para numerar elementos como o JARVIS fazia. Ações perigosas (pagar, apagar,
+    enviar...) são bloqueadas na hora, sem perguntar por voz. ESC mata o loop a qualquer
+    momento. Registrado como função usar_computador no gemini/live_client.py.
+[x] desenhar_na_tela (actions/desenhar_na_tela.py) - porte fiel da camada de UI Automation
+    (comtypes, nova dependência instalada no venv) do JARVIS: acha ferramenta/cor do Paint
+    pelo NOME, desenha com SendInput numa thread MTA dedicada, respeitando as quatro
+    armadilhas documentadas no cabeçalho do original (UIA só em MTA; SendInput em vez de
+    SetCursorPos+mouse_event; Enter não fixa a forma, só trocar de ferramenta fixa; Cor 1 é
+    preenchimento e Cor 2 é contorno no Paint novo). Quem decide O QUE desenhar agora é uma
+    chamada direta ao Gemini pedindo o plano de formas em JSON estruturado (response_schema),
+    sem VPS nem Codex. "Desenhar a partir de uma foto" via OpenCV foi portado quase igual.
+    Cortado do original (ver o cabeçalho do arquivo para o motivo de cada corte): a segunda
+    passada de autocrítica do plano, o veredito por visão do desenho pronto (que mandava
+    refazer sozinho), "desenhar em cima de uma foto" existente, suporte a outros editores
+    além do Paint (Photoshop/GIMP/Krita), narração contínua durante o desenho e registro em
+    diário — o SoftIA ainda não tem narrador_pc nem diário automático. Janela achada/focada/
+    maximizada com ctypes puro (sem pywin32, que o SoftIA não tem). Registrado como função
+    desenhar_na_tela no gemini/live_client.py. NÃO TESTADO DE VERDADE (abrir o Paint e ver
+    desenhando ao vivo) — só compilado; falta o usuário confirmar na prática.
+
+TODOS OS RÁPIDOS E OS DOIS GRANDES FORAM PORTADOS. FIM DA LISTA DE PORTES.
+
+DECIDIDO QUE NÃO VAI PORTAR (redundante ou não se aplica ao SoftIA):
+- weather_report, youtube_video -> já existem (pesquisar_no_navegador, tocar_no_youtube)
+- relogio_falado -> desnecessário, Gemini Live já sabe a hora/data
+- lixeira/desfazer -> SoftIA nunca exclui arquivo, não há o que restaurar
+- reminder -> redundante com a agenda (criar_evento_agenda)
+- narrador_pc -> avaliado em 19/09/2026: o JARVIS fala frases periódicas ("não mexa no
+  mouse...") enquanto usar_computador/desenhar_na_tela rodam. No SoftIA isso exigiria mudar
+  o loop principal do gemini/live_client.py: hoje, quando o Gemini chama uma função, o loop
+  que recebe mensagens da sessão de voz FICA PARADO esperando a função terminar (veja
+  `await self.processar_chamada_de_funcao(...)` perto da linha 1951) — então uma fala
+  mandada no meio da tarefa só chegaria (e tocaria) depois que a tarefa já tivesse acabado,
+  o que não serve pra nada. Corrigir de verdade exigiria rodar as chamadas de função em
+  paralelo (asyncio.create_task) em vez de bloquear esse loop — mudança no núcleo de que
+  TODAS as outras funções já portadas dependem, com risco real de quebrar coisa que já
+  funciona. Klecio decidiu não arriscar por uma melhoria de conforto; quem usa
+  usar_computador/desenhar_na_tela continua vendo o andamento em texto na tela
+  (status_recebido), só sem fala.

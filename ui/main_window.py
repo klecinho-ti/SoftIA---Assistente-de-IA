@@ -1,138 +1,314 @@
-﻿# [Klecio] os é usado para atualizar a chave de API em memória
+# [Klecio] os é usado para atualizar a chave de API em memória
 # [Klecio] imediatamente após salvar as Configurações.
 import os
 
-# [Klecio] time é usado apenas para o intervalo entre leituras do
-# [Klecio] painel de hardware, dentro da thread dedicada a isso.
+# [Klecio] time é usado para o intervalo entre leituras do painel
+# [Klecio] de hardware e para marcar quando o programa abriu (o
+# [Klecio] relógio "LIG" do painel esquerdo).
 import time
 
-# [Klecio] psutil fornece o uso atual de CPU, memória e disco
-# [Klecio] para o painel de hardware ao vivo do painel lateral.
+# [Klecio] datetime fornece a hora e a data exibidas no topo da janela.
+from datetime import datetime
+
+# [Klecio] psutil fornece o uso atual de CPU, memória, disco e rede
+# [Klecio] para o painel de hardware ao vivo do painel esquerdo.
 import psutil
 
 # [Klecio] Qt fornece constantes do framework PySide6.
-# [Klecio] Neste arquivo, Qt.AlignCenter é usado para centralizar textos,
-# [Klecio] QThread e Signal permitem ler o hardware em segundo plano,
-# [Klecio] sem travar a interface.
-from PySide6.QtCore import Qt, QThread, QTimer, Signal
+from PySide6.QtCore import QPoint, Qt, QThread, QTimer, Signal
+from PySide6.QtGui import QFont
 
-# [Klecio] Importa os componentes visuais usados pela janela:
-# [Klecio] QFrame cria os painéis; QHBoxLayout e QVBoxLayout organizam os elementos;
-# [Klecio] QLabel exibe textos; QPushButton cria botões; QTextEdit mostra o log;
-# [Klecio] QSizePolicy controla expansão; QWidget funciona como container central.
+# [Klecio] Componentes visuais usados para montar a janela.
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QPushButton,
     QSizePolicy,
+    QSpacerItem,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
 # [Klecio] Importa a thread que mantém a conexão em tempo real com o Gemini.
-# [Klecio] Ela envia status, erros, áudio e sinais de encerramento para a interface.
 from gemini.live_client import GeminiLiveWorker
-# [Klecio] Importa o visualizador futurista que desenha a esfera,
-# [Klecio] os anéis, o status e a animação de áudio.
+# [Klecio] Importa o visualizador futurista (o círculo central animado).
 from ui.softia_visualizer import SoftIAVisualizer
-# [Klecio] Importa a janela de Configurações, que permite trocar a
-# [Klecio] chave de API, o nome da assistente, a voz e a senha de
-# [Klecio] autenticação a qualquer momento, sem reinstalar o SOFTIA.
+# [Klecio] Importa a janela de Configurações.
 from ui.settings_dialog import ConfiguracoesDialog
-# [Klecio] Funções que leem e salvam as configurações do usuário
-# [Klecio] no config.json local.
+# [Klecio] Funções que leem e salvam as configurações do usuário.
 from core.api_key_manager import carregar_configuracoes, salvar_configuracoes
 
 
-# [Klecio] A variável abaixo contém todo o QSS da interface.
-# [Klecio] QSS é semelhante ao CSS e controla cores, bordas, fontes e estados.
-# [Klecio] Nenhum comentário foi colocado dentro desta string para não alterar o estilo.
+# ============================================================
+# ESTILO GLOBAL — painel "terminal ciano", trocado em 19/09/2026
+# a pedido do Klecio para reproduzir o visual em painéis do
+# JARVIS-CyberBot: janela sem moldura do Windows, caixas de
+# status com borda fina, botões em forma de cápsula.
+# ============================================================
 ESTILO_GLOBAL = """
-QMainWindow {
-    background-color: #050507;
+QMainWindow, QWidget#janelaRaiz {
+    background-color: #00060a;
 }
 
 QWidget {
-    color: #f2f2f4;
-    font-family: "Segoe UI";
+    color: #8ffcff;
+    font-family: "Courier New";
 }
 
-QFrame#painelLateral {
-    background-color: rgba(9, 9, 12, 242);
-    border: 1px solid rgba(45, 140, 255, 70);
-    border-radius: 18px;
+/* -------------------- barra de título customizada -------------------- */
+QWidget#barraTitulo {
+    background-color: #010d14;
+    border-bottom: 1px solid #0d3347;
 }
 
-QFrame#painelPrincipal {
-    background-color: rgba(5, 5, 7, 246);
-    border: 1px solid rgba(45, 140, 255, 55);
-    border-radius: 22px;
-}
-
-QLabel#tituloPainel {
-    color: #ffffff;
-    font-size: 18px;
-    font-weight: 700;
-    letter-spacing: 3px;
-}
-
-QLabel#subtituloPainel {
-    color: #8c8c94;
-    font-size: 11px;
-}
-
-QPushButton {
-    min-height: 46px;
-    padding: 0 16px;
-    color: #f5f5f6;
-    background-color: rgba(18, 18, 22, 235);
-    border: 1px solid rgba(60, 150, 255, 75);
-    border-radius: 12px;
+QLabel#tituloBarra {
+    color: #8ffcff;
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 700;
+    letter-spacing: 2px;
 }
 
-QPushButton:hover {
-    background-color: rgba(10, 35, 70, 245);
-    border: 1px solid rgba(70, 170, 255, 180);
-}
-
-QPushButton:pressed {
-    background-color: rgba(15, 55, 120, 250);
-    border: 1px solid #2f8fff;
-}
-
-QPushButton#botaoChamada {
-    min-height: 54px;
-    color: #ffffff;
-    background-color: #0b4cb9;
-    border: 1px solid #2f8fff;
+QPushButton#botaoJanela {
+    min-width: 40px;
+    max-width: 40px;
+    min-height: 30px;
+    max-height: 30px;
+    color: #5ab8cc;
+    background-color: transparent;
+    border: none;
     font-size: 13px;
+}
+
+QPushButton#botaoJanela:hover {
+    background-color: rgba(0, 212, 255, 40);
+    color: #8ffcff;
+}
+
+QPushButton#botaoFechar:hover {
+    background-color: #ff3355;
+    color: #00060a;
+}
+
+/* -------------------- cabeçalho central -------------------- */
+QLabel#tituloGrande {
+    color: #8ffcff;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 8px;
+}
+
+QLabel#subtituloGrande {
+    color: #3a8a9a;
+    font-size: 10px;
+    letter-spacing: 2px;
+}
+
+QLabel#relogio {
+    color: #8ffcff;
+    font-size: 14px;
     font-weight: 700;
 }
 
-QPushButton#botaoChamada:hover {
-    background-color: #1272dd;
+QLabel#dataAtual {
+    color: #3a8a9a;
+    font-size: 10px;
 }
 
-QPushButton#botaoChamada[encerrando="true"] {
-    background-color: #2b2b31;
-    border: 1px solid #696973;
-    color: #b8b8be;
+/* -------------------- caixas de status (CPU/RAM/REDE/GPU/TEMP) -------------------- */
+QFrame#caixaStatus {
+    background-color: rgba(1, 13, 20, 230);
+    border: 1px solid #0d3347;
+    border-radius: 3px;
+}
+
+QLabel#rotuloStatus {
+    color: #3a8a9a;
+    font-size: 10px;
+    letter-spacing: 1px;
+}
+
+QLabel#valorStatusNormal {
+    color: #8ffcff;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+QLabel#valorStatusAlerta {
+    color: #ff3366;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+QFrame#barraStatusFundo {
+    background-color: #001820;
+    border-radius: 2px;
+}
+
+QFrame#barraStatusPreenchimento {
+    background-color: #00d4ff;
+    border-radius: 2px;
+}
+
+QFrame#barraStatusPreenchimentoAlerta {
+    background-color: #ff3366;
+    border-radius: 2px;
+}
+
+/* -------------------- info compacta (LIG / PROC / SO) -------------------- */
+QLabel#infoCompacta {
+    color: #5ab8cc;
+    font-size: 10px;
+}
+
+/* -------------------- câmera -------------------- */
+QFrame#caixaCamera {
+    background-color: rgba(1, 13, 20, 230);
+    border: 1px solid #0d3347;
+    border-radius: 3px;
+}
+
+QLabel#tituloCamera {
+    color: #3a8a9a;
+    font-size: 10px;
+    letter-spacing: 1px;
+}
+
+QLabel#previaCamera {
+    color: #3a8a9a;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+QLabel#estadoCamera {
+    color: #5ab8cc;
+    font-size: 9px;
+}
+
+/* -------------------- botão de configurações -------------------- */
+QPushButton#botaoConfig {
+    min-height: 40px;
+    color: #8ffcff;
+    background-color: rgba(1, 15, 24, 235);
+    border: 1px solid #0d3347;
+    border-radius: 3px;
+    font-size: 16px;
+}
+
+QPushButton#botaoConfig:hover {
+    border: 1px solid #00d4ff;
+}
+
+/* -------------------- indicadores de rodapé do painel esquerdo -------------------- */
+QLabel#indicadorOk {
+    color: #00ff88;
+    font-size: 10px;
+    letter-spacing: 1px;
+}
+
+/* -------------------- status do círculo central -------------------- */
+QLabel#statusOuvindo {
+    color: #00ff88;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+}
+
+/* -------------------- comandos rápidos -------------------- */
+QLabel#tituloComandos {
+    color: #3a8a9a;
+    font-size: 10px;
+    letter-spacing: 2px;
+}
+
+QLabel#rotuloPainelExpansivel {
+    color: #3a8a9a;
+    font-size: 9px;
+    letter-spacing: 1px;
+}
+
+QPushButton#comandoRapido {
+    min-height: 62px;
+    color: #8ffcff;
+    background-color: rgba(1, 15, 24, 235);
+    border: 1px solid #0d3347;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    padding-top: 6px;
+}
+
+QPushButton#comandoRapido:hover {
+    border: 1px solid #00d4ff;
+}
+
+QPushButton#comandoRapido[ligado="true"] {
+    border: 1px solid #00ff88;
+    color: #00ff88;
+}
+
+QPushButton#comandoRapido[perigo="true"] {
+    border: 1px solid #ff3366;
+    color: #ff3366;
+}
+
+/* -------------------- transcrição -------------------- */
+QLabel#tituloTranscricao {
+    color: #3a8a9a;
+    font-size: 10px;
+    letter-spacing: 2px;
 }
 
 QTextEdit#logBox {
-    color: #d7d7dc;
-    background-color: rgba(2, 2, 4, 225);
-    border: 1px solid rgba(50, 150, 255, 50);
-    border-radius: 13px;
+    color: #5ab8cc;
+    background-color: rgba(1, 5, 7, 225);
+    border: 1px solid #0d3347;
+    border-radius: 4px;
     padding: 10px;
-    font-family: "Consolas";
-    font-size: 10px;
-    selection-background-color: #0b4ca1;
+    font-family: "Courier New";
+    font-size: 11px;
+    selection-background-color: #007a99;
+}
+
+QLineEdit#campoComando {
+    min-height: 34px;
+    padding: 0 10px;
+    color: #8ffcff;
+    background-color: rgba(1, 15, 24, 235);
+    border: 1px solid #0d3347;
+    border-radius: 4px;
+}
+
+QPushButton#botaoEnviar {
+    min-width: 34px;
+    max-width: 34px;
+    min-height: 34px;
+    color: #00060a;
+    background-color: #00d4ff;
+    border: none;
+    border-radius: 4px;
+    font-weight: 700;
+}
+
+/* -------------------- barra de rodapé -------------------- */
+QWidget#barraRodape {
+    background-color: #010d14;
+    border-top: 1px solid #0d3347;
+}
+
+QLabel#textoRodape {
+    color: #3a8a9a;
+    font-size: 9px;
+}
+
+/* -------------------- painéis gerais -------------------- */
+QFrame#painelEsquerdo, QFrame#painelCentral, QFrame#painelDireito {
+    background-color: rgba(0, 6, 10, 246);
+    border: 1px solid #0d3347;
+    border-radius: 4px;
 }
 
 QScrollBar:vertical {
@@ -142,7 +318,7 @@ QScrollBar:vertical {
 
 QScrollBar::handle:vertical {
     min-height: 30px;
-    background: rgba(60, 160, 255, 115);
+    background: rgba(0, 212, 255, 130);
     border-radius: 3px;
 }
 
@@ -153,29 +329,26 @@ QScrollBar::sub-line:vertical {
 """
 
 
-# [Klecio] Lê o uso de CPU, memória e disco em uma thread separada
-# [Klecio] da interface gráfica. As chamadas do psutil (principalmente
-# [Klecio] disco) podem ocasionalmente demorar alguns instantes nesta
-# [Klecio] máquina; se fossem feitas direto na thread da interface,
-# [Klecio] travariam a janela e atrasariam a entrega do áudio durante
-# [Klecio] a chamada. Rodando aqui, o pior caso é uma leitura atrasada,
-# [Klecio] nunca uma trava da interface ou da conversa.
+# [Klecio] Lê o uso de CPU, memória, disco e rede em uma thread
+# [Klecio] separada da interface gráfica, para nenhuma leitura
+# [Klecio] ocasionalmente lenta travar a janela nem atrasar o áudio
+# [Klecio] durante uma chamada.
 class MonitorHardwareThread(QThread):
 
-    # Envia o uso atual de CPU, RAM e disco (em percentual) para a interface.
-    dados_hardware = Signal(float, float, float)
+    # Envia CPU%, RAM%, disco%, rede em KB/s e total de processos.
+    dados_hardware = Signal(float, float, float, float, int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
-
         self.ativo = True
 
     def run(self):
-        # Primeira chamada apenas define a referência de comparação
+        # Primeira chamada só define a referência de comparação
         # exigida pelo psutil; o valor em si é descartado.
-        psutil.cpu_percent(
-            interval=None
-        )
+        psutil.cpu_percent(interval=None)
+
+        contadores_rede = psutil.net_io_counters()
+        bytes_anteriores = contadores_rede.bytes_sent + contadores_rede.bytes_recv
 
         while self.ativo:
             time.sleep(2)
@@ -184,12 +357,16 @@ class MonitorHardwareThread(QThread):
                 break
 
             try:
-                uso_cpu = psutil.cpu_percent(
-                    interval=None
-                )
-
+                uso_cpu = psutil.cpu_percent(interval=None)
                 uso_ram = psutil.virtual_memory().percent
                 uso_disco = psutil.disk_usage("C:\\").percent
+
+                contadores_agora = psutil.net_io_counters()
+                bytes_agora = contadores_agora.bytes_sent + contadores_agora.bytes_recv
+                rede_kbps = max(0.0, (bytes_agora - bytes_anteriores) / 1024 / 2)
+                bytes_anteriores = bytes_agora
+
+                total_processos = len(psutil.pids())
 
             # Se qualquer leitura falhar, ignora esta rodada e tenta
             # novamente no próximo ciclo, sem derrubar a thread.
@@ -200,766 +377,617 @@ class MonitorHardwareThread(QThread):
                 uso_cpu,
                 uso_ram,
                 uso_disco,
+                rede_kbps,
+                total_processos,
             )
 
     def parar(self):
         self.ativo = False
 
 
-# [Klecio] Classe principal da interface futurista.
-# [Klecio] Ela herda de QMainWindow, que fornece a estrutura base da janela.
+# [Klecio] Uma caixinha de status do painel esquerdo (CPU, RAM, REDE,
+# [Klecio] GPU, TEMP): rótulo em cima, valor grande, barrinha fina
+# [Klecio] embaixo representando o percentual.
+class CaixaStatus(QFrame):
+
+    def __init__(self, rotulo, parent=None):
+        super().__init__(parent)
+        self.setObjectName("caixaStatus")
+        self.setFixedHeight(60)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 6, 10, 8)
+        layout.setSpacing(4)
+
+        linha_topo = QHBoxLayout()
+        linha_topo.setSpacing(6)
+
+        rotulo_widget = QLabel(rotulo)
+        rotulo_widget.setObjectName("rotuloStatus")
+
+        self.valor_widget = QLabel("N/D")
+        self.valor_widget.setObjectName("valorStatusNormal")
+        self.valor_widget.setAlignment(Qt.AlignRight)
+
+        linha_topo.addWidget(rotulo_widget)
+        linha_topo.addStretch(1)
+        linha_topo.addWidget(self.valor_widget)
+
+        self._barra_fundo = QFrame()
+        self._barra_fundo.setObjectName("barraStatusFundo")
+        self._barra_fundo.setFixedHeight(4)
+
+        self._barra_layout = QHBoxLayout(self._barra_fundo)
+        self._barra_layout.setContentsMargins(0, 0, 0, 0)
+        self._barra_layout.setSpacing(0)
+
+        self._barra_cheia = QFrame()
+        self._barra_cheia.setObjectName("barraStatusPreenchimento")
+        self._barra_layout.addWidget(self._barra_cheia)
+        self._barra_layout.addStretch(1)
+
+        layout.addLayout(linha_topo)
+        layout.addWidget(self._barra_fundo)
+
+    # Atualiza o valor exibido e a barrinha de percentual.
+    # `percentual=None` mantém a caixa em "N/D" (ex.: GPU e
+    # temperatura, que este computador não consegue medir).
+    def definir_valor(self, texto, percentual=None):
+        self.valor_widget.setText(texto)
+
+        alerta = percentual is not None and percentual >= 80
+        self.valor_widget.setObjectName(
+            "valorStatusAlerta" if alerta else "valorStatusNormal"
+        )
+        # Reaplica o estilo depois de trocar o objectName dinamicamente.
+        self.valor_widget.style().unpolish(self.valor_widget)
+        self.valor_widget.style().polish(self.valor_widget)
+
+        self._barra_cheia.setObjectName(
+            "barraStatusPreenchimentoAlerta" if alerta else "barraStatusPreenchimento"
+        )
+        self._barra_cheia.style().unpolish(self._barra_cheia)
+        self._barra_cheia.style().polish(self._barra_cheia)
+
+        largura_total = max(1, self._barra_fundo.width())
+        fracao = 0.0 if percentual is None else max(0.0, min(1.0, percentual / 100))
+        self._barra_cheia.setFixedWidth(int(largura_total * fracao))
+
+
+# [Klecio] Barra de título própria, já que a janela não tem mais a
+# [Klecio] moldura do Windows. Arrastar aqui move a janela; os três
+# [Klecio] botões da direita minimizam, maximizam e fecham.
+class BarraTitulo(QWidget):
+
+    def __init__(self, janela, parent=None):
+        super().__init__(parent)
+        self.setObjectName("barraTitulo")
+        self.setFixedHeight(32)
+        self._janela = janela
+        self._arrastando = False
+        self._offset = QPoint()
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 0, 0, 0)
+        layout.setSpacing(8)
+
+        titulo = QLabel("SOFTIA")
+        titulo.setObjectName("tituloBarra")
+
+        botao_minimizar = QPushButton("—")
+        botao_minimizar.setObjectName("botaoJanela")
+        botao_minimizar.clicked.connect(janela.showMinimized)
+
+        botao_maximizar = QPushButton("▢")
+        botao_maximizar.setObjectName("botaoJanela")
+        botao_maximizar.clicked.connect(self._alternar_maximizado)
+
+        botao_fechar = QPushButton("✕")
+        botao_fechar.setObjectName("botaoJanela")
+        # objectName extra só para o CSS de hover ficar vermelho.
+        botao_fechar.setProperty("class", "fechar")
+        botao_fechar.setObjectName("botaoFechar")
+        botao_fechar.clicked.connect(janela.close)
+
+        layout.addWidget(titulo)
+        layout.addStretch(1)
+        layout.addWidget(botao_minimizar)
+        layout.addWidget(botao_maximizar)
+        layout.addWidget(botao_fechar)
+
+    def _alternar_maximizado(self):
+        if self._janela.isMaximized():
+            self._janela.showNormal()
+        else:
+            self._janela.showMaximized()
+
+    def mousePressEvent(self, evento):
+        if evento.button() == Qt.LeftButton:
+            self._arrastando = True
+            self._offset = evento.globalPosition().toPoint() - self._janela.frameGeometry().topLeft()
+
+    def mouseMoveEvent(self, evento):
+        if self._arrastando and evento.buttons() & Qt.LeftButton:
+            self._janela.move(evento.globalPosition().toPoint() - self._offset)
+
+    def mouseReleaseEvent(self, evento):
+        self._arrastando = False
+
+    def mouseDoubleClickEvent(self, evento):
+        self._alternar_maximizado()
+
+
+# [Klecio] Classe principal da interface, agora no visual "painel
+# [Klecio] JARVIS": janela sem moldura do Windows, painel de status
+# [Klecio] à esquerda, círculo central, comandos rápidos embaixo,
+# [Klecio] transcrição à direita e barra de rodapé.
 class MainWindow(QMainWindow):
 
-    # [Klecio] Inicializa a janela, define tamanho, estilo
-    # [Klecio] e cria todos os componentes visuais.
     def __init__(self):
-        # [Klecio] Inicializa corretamente a classe QMainWindow.
         super().__init__()
 
-        # [Klecio] Impede que a janela seja reduzida abaixo deste tamanho.
-        self.setMinimumSize(
-            1000,
-            680,
-        )
+        # Remove a moldura padrão do Windows — a barra de título
+        # agora é desenhada pelo próprio SOFTIA (classe BarraTitulo).
+        self.setWindowFlags(Qt.FramelessWindowHint)
 
-        # [Klecio] Define o tamanho inicial da janela.
-        self.resize(
-            1180,
-            760,
-        )
+        self.setMinimumSize(1180, 760)
+        self.resize(1280, 820)
 
-        # [Klecio] Remove a referência da thread já finalizada.
         self.live_worker = None
         self.session_handle = None
         self.reconectar_automaticamente = False
         self.encerramento_manual = False
-        # Repassado a cada reconexão automática, para que o modo
-        # silêncio não seja perdido quando o servidor renova a conexão.
         self.modo_silencio = False
 
-        # [Klecio] Aplica o QSS completo armazenado em ESTILO_GLOBAL.
-        self.setStyleSheet(
-            ESTILO_GLOBAL
-        )
+        # Guardado para o relógio "LIG" do painel esquerdo (há quanto
+        # tempo o SOFTIA está aberto).
+        self._aberto_desde = time.monotonic()
 
-        # [Klecio] Chama o método que monta toda a interface.
+        self.setStyleSheet(ESTILO_GLOBAL)
+
         self._criar_interface()
 
-        # [Klecio] Aplica o nome salvo pelo usuário (ou "SOFTIA" por
-        # [Klecio] padrão) no título da janela e no visualizador.
         self._aplicar_nome_assistente(
             carregar_configuracoes()["nome_assistente"]
         )
 
-    # [Klecio] Cria os painéis, layouts, textos, botões,
-    # [Klecio] log e visualizador do SOFTIA.
+    # ========================================================
+    # MONTAGEM DA INTERFACE
+    # ========================================================
+
     def _criar_interface(self):
-        # [Klecio] Container central que receberá o layout raiz.
-        container = QWidget()
+        raiz = QWidget()
+        raiz.setObjectName("janelaRaiz")
 
-        # [Klecio] Remove margens internas do container.
-        container.setContentsMargins(
-            0,
-            0,
-            0,
-            0,
-        )
+        layout_vertical_raiz = QVBoxLayout(raiz)
+        layout_vertical_raiz.setContentsMargins(0, 0, 0, 0)
+        layout_vertical_raiz.setSpacing(0)
 
-        # [Klecio] Layout horizontal principal.
-        # [Klecio] Coloca o painel lateral à esquerda e o painel visual à direita.
-        layout_raiz = QHBoxLayout(
-            container
-        )
+        # -------------------- barra de título --------------------
+        self._barra_titulo = BarraTitulo(self)
+        layout_vertical_raiz.addWidget(self._barra_titulo)
 
-        # [Klecio] Define as margens externas da interface.
-        layout_raiz.setContentsMargins(
-            18,
-            18,
-            18,
-            18,
-        )
+        # -------------------- corpo --------------------
+        corpo = QWidget()
+        layout_corpo = QVBoxLayout(corpo)
+        layout_corpo.setContentsMargins(16, 12, 16, 8)
+        layout_corpo.setSpacing(10)
 
-        # [Klecio] Define o espaço entre os dois painéis.
-        layout_raiz.setSpacing(
-            16
-        )
+        layout_corpo.addLayout(self._montar_cabecalho())
 
-        # [Klecio] Cria o painel lateral de controles e eventos.
-        painel_lateral = QFrame()
+        linha_principal = QHBoxLayout()
+        linha_principal.setSpacing(12)
+        linha_principal.addWidget(self._montar_painel_esquerdo())
+        linha_principal.addWidget(self._montar_painel_central(), 1)
+        linha_principal.addWidget(self._montar_painel_direito())
+        layout_corpo.addLayout(linha_principal, 1)
 
-        # [Klecio] Define o nome usado pelo seletor QSS QFrame#painelLateral.
-        painel_lateral.setObjectName(
-            "painelLateral"
-        )
+        layout_vertical_raiz.addWidget(corpo, 1)
 
-        # [Klecio] Mantém a largura do painel lateral fixa.
-        painel_lateral.setFixedWidth(
-            280
-        )
+        # -------------------- rodapé --------------------
+        layout_vertical_raiz.addWidget(self._montar_rodape())
 
-        # [Klecio] Organiza verticalmente os itens do painel lateral.
-        layout_lateral = QVBoxLayout(
-            painel_lateral
-        )
+        self.setCentralWidget(raiz)
 
-        # [Klecio] Define as margens internas do painel lateral.
-        layout_lateral.setContentsMargins(
-            18,
-            20,
-            18,
-            18,
-        )
+        # Liga os botões aos mesmos métodos de sempre.
+        self.btn_chamada.clicked.connect(self.alternar_chamada)
+        self.btn_tela.clicked.connect(self.analisar_tela)
+        self.btn_camera.clicked.connect(self.analisar_camera)
+        self.btn_configuracoes.clicked.connect(self.abrir_configuracoes)
 
-        # [Klecio] Define o espaço entre os componentes laterais.
-        layout_lateral.setSpacing(
-            12
-        )
-
-        # [Klecio] Cria o título principal do painel lateral.
-        titulo = QLabel(
-            "SYSTEM CORE"
-        )
-
-        # [Klecio] Liga este QLabel ao estilo QLabel#tituloPainel.
-        titulo.setObjectName(
-            "tituloPainel"
-        )
-
-        # [Klecio] Centraliza o título horizontal e verticalmente.
-        titulo.setAlignment(
-            Qt.AlignCenter
-        )
-
-        # [Klecio] Cria o subtítulo descritivo do painel.
-        subtitulo = QLabel(
-            "Controle neural e telemetria local"
-        )
-
-        subtitulo.setObjectName(
-            "subtituloPainel"
-        )
-
-        subtitulo.setAlignment(
-            Qt.AlignCenter
-        )
-
-        # [Klecio] Permite quebra automática de linha no subtítulo.
-        subtitulo.setWordWrap(
-            True
-        )
-
-        # [Klecio] Botão principal para iniciar ou encerrar a conexão.
-        self.btn_chamada = QPushButton(
-            "INICIAR CONEXÃO"
-        )
-
-        # [Klecio] Liga o botão ao estilo QPushButton#botaoChamada.
-        self.btn_chamada.setObjectName(
-            "botaoChamada"
-        )
-
-        # [Klecio] Botão que solicita uma captura e análise da tela.
-        self.btn_tela = QPushButton(
-            "▣  ANALISAR TELA"
-        )
-
-        # [Klecio] Botão que solicita uma captura e análise da webcam.
-        self.btn_camera = QPushButton(
-            "◉  ANALISAR CÂMERA"
-        )
-
-        # [Klecio] Botão que reabre a janela de Configurações a
-        # [Klecio] qualquer momento, sem precisar reinstalar o SOFTIA.
-        self.btn_configuracoes = QPushButton(
-            "⚙  CONFIGURAÇÕES"
-        )
-
-        # [Klecio] Título da área de eventos do sistema.
-        log_titulo = QLabel(
-            "EVENT STREAM"
-        )
-
-        log_titulo.setObjectName(
-            "subtituloPainel"
-        )
-
-        log_titulo.setAlignment(
-            Qt.AlignCenter
-        )
-
-        # [Klecio] Caixa usada para mostrar mensagens de atividade.
-        self.log_box = QTextEdit()
-
-        # [Klecio] Liga a caixa ao estilo QTextEdit#logBox.
-        self.log_box.setObjectName(
-            "logBox"
-        )
-
-        # [Klecio] Impede que o usuário edite o registro manualmente.
-        self.log_box.setReadOnly(
-            True
-        )
-
-        # [Klecio] Mostra uma mensagem enquanto não houver eventos.
-        self.log_box.setPlaceholderText(
-            "Aguardando eventos do sistema..."
-        )
-
-        # [Klecio] Permite que o log se expanda para ocupar o espaço disponível.
-        self.log_box.setSizePolicy(
-            QSizePolicy.Expanding,
-            QSizePolicy.Expanding,
-        )
-
-        # [Klecio] Adiciona um widget ao layout lateral na ordem definida.
-        layout_lateral.addWidget(
-            titulo
-        )
-
-        # [Klecio] Adiciona um widget ao layout lateral na ordem definida.
-        layout_lateral.addWidget(
-            subtitulo
-        )
-
-        # [Klecio] Adiciona um espaço fixo entre grupos de componentes.
-        layout_lateral.addSpacing(
-            10
-        )
-
-        # [Klecio] Adiciona um widget ao layout lateral na ordem definida.
-        layout_lateral.addWidget(
-            self.btn_chamada
-        )
-
-        # [Klecio] Adiciona um widget ao layout lateral na ordem definida.
-        layout_lateral.addWidget(
-            self.btn_tela
-        )
-
-        # [Klecio] Adiciona um widget ao layout lateral na ordem definida.
-        layout_lateral.addWidget(
-            self.btn_camera
-        )
-
-        # [Klecio] Adiciona um widget ao layout lateral na ordem definida.
-        layout_lateral.addWidget(
-            self.btn_configuracoes
-        )
-
-        # [Klecio] Adiciona um espaço fixo entre grupos de componentes.
-        layout_lateral.addSpacing(
-            10
-        )
-
-        # [Klecio] Adiciona um widget ao layout lateral na ordem definida.
-        layout_lateral.addWidget(
-            log_titulo
-        )
-
-        # [Klecio] Adiciona um widget ao layout lateral na ordem definida.
-        layout_lateral.addWidget(
-            self.log_box,
-            1,
-        )
-
-        # [Klecio] Título da área de hardware ao vivo, logo abaixo
-        # [Klecio] do EVENT STREAM.
-        hardware_titulo = QLabel(
-            "HARDWARE"
-        )
-
-        hardware_titulo.setObjectName(
-            "subtituloPainel"
-        )
-
-        hardware_titulo.setAlignment(
-            Qt.AlignCenter
-        )
-
-        # [Klecio] Rótulos que mostram o uso atual de CPU, memória
-        # [Klecio] RAM e disco, atualizados periodicamente.
-        self.label_cpu = QLabel("CPU: --%")
-        self.label_ram = QLabel("RAM: --%")
-        self.label_disco = QLabel("Disco: --%")
-
-        for rotulo_hardware in (
-            self.label_cpu,
-            self.label_ram,
-            self.label_disco,
-        ):
-            rotulo_hardware.setAlignment(
-                Qt.AlignCenter
-            )
-
-            rotulo_hardware.setStyleSheet(
-                "color: #8c8c94; font-family: 'Consolas'; font-size: 11px;"
-            )
-
-        layout_lateral.addSpacing(
-            10
-        )
-
-        layout_lateral.addWidget(
-            hardware_titulo
-        )
-
-        layout_lateral.addWidget(
-            self.label_cpu
-        )
-
-        layout_lateral.addWidget(
-            self.label_ram
-        )
-
-        layout_lateral.addWidget(
-            self.label_disco
-        )
-
-        # [Klecio] Lê CPU, RAM e disco em uma thread separada, para que
-        # [Klecio] uma leitura ocasionalmente lenta nunca trave a janela
-        # [Klecio] nem atrase o áudio durante uma chamada.
+        # Thread do painel de hardware.
         self.thread_hardware = MonitorHardwareThread(self)
-
-        self.thread_hardware.dados_hardware.connect(
-            self._atualizar_hardware
-        )
-
+        self.thread_hardware.dados_hardware.connect(self._atualizar_hardware)
         self.thread_hardware.start()
 
-        # [Klecio] Cria o painel que receberá o visualizador futurista.
-        painel_principal = QFrame()
+        # Relógio do topo, atualizado a cada segundo.
+        self._timer_relogio = QTimer(self)
+        self._timer_relogio.timeout.connect(self._atualizar_relogio)
+        self._timer_relogio.start(1000)
+        self._atualizar_relogio()
 
-        # [Klecio] Liga o painel ao estilo QFrame#painelPrincipal.
-        painel_principal.setObjectName(
-            "painelPrincipal"
+    # -------------------- cabeçalho (título central + relógio) --------------------
+    def _montar_cabecalho(self):
+        layout = QHBoxLayout()
+        layout.setSpacing(0)
+
+        layout.addStretch(1)
+
+        centro = QVBoxLayout()
+        centro.setSpacing(2)
+
+        self._titulo_grande = QLabel("S.O.F.T.I.A.")
+        self._titulo_grande.setObjectName("tituloGrande")
+        self._titulo_grande.setAlignment(Qt.AlignCenter)
+
+        subtitulo = QLabel("Assistente de IA para Desktop")
+        subtitulo.setObjectName("subtituloGrande")
+        subtitulo.setAlignment(Qt.AlignCenter)
+
+        centro.addWidget(self._titulo_grande)
+        centro.addWidget(subtitulo)
+
+        layout.addLayout(centro)
+        layout.addStretch(1)
+
+        direita = QVBoxLayout()
+        direita.setSpacing(0)
+        self._label_relogio = QLabel("--:--:--")
+        self._label_relogio.setObjectName("relogio")
+        self._label_relogio.setAlignment(Qt.AlignRight)
+        self._label_data = QLabel("")
+        self._label_data.setObjectName("dataAtual")
+        self._label_data.setAlignment(Qt.AlignRight)
+        direita.addWidget(self._label_relogio)
+        direita.addWidget(self._label_data)
+        layout.addLayout(direita)
+
+        return layout
+
+    # -------------------- painel esquerdo (status + câmera + config) --------------------
+    def _montar_painel_esquerdo(self):
+        painel = QFrame()
+        painel.setObjectName("painelEsquerdo")
+        painel.setFixedWidth(200)
+
+        layout = QVBoxLayout(painel)
+        layout.setContentsMargins(10, 12, 10, 10)
+        layout.setSpacing(8)
+
+        self._caixa_cpu = CaixaStatus("CPU")
+        self._caixa_ram = CaixaStatus("RAM")
+        self._caixa_rede = CaixaStatus("REDE")
+        self._caixa_gpu = CaixaStatus("GPU")
+        self._caixa_temp = CaixaStatus("TEMP")
+
+        for caixa in (
+            self._caixa_cpu,
+            self._caixa_ram,
+            self._caixa_rede,
+            self._caixa_gpu,
+            self._caixa_temp,
+        ):
+            layout.addWidget(caixa)
+
+        self._label_info_compacta = QLabel(
+            "LIG  00:00\nPROC  --\nSO  WIN"
         )
+        self._label_info_compacta.setObjectName("infoCompacta")
+        layout.addWidget(self._label_info_compacta)
 
-        # [Klecio] Cria o layout interno do painel principal.
-        layout_principal = QVBoxLayout(
-            painel_principal
-        )
+        # -------------------- câmera --------------------
+        caixa_camera = QFrame()
+        caixa_camera.setObjectName("caixaCamera")
+        layout_camera = QVBoxLayout(caixa_camera)
+        layout_camera.setContentsMargins(10, 8, 10, 8)
+        layout_camera.setSpacing(4)
 
-        # [Klecio] Define uma margem pequena ao redor do visualizador.
-        layout_principal.setContentsMargins(
-            8,
-            8,
-            8,
-            8,
-        )
+        titulo_camera = QLabel("• CÂMERA")
+        titulo_camera.setObjectName("tituloCamera")
 
-        # [Klecio] Cria a animação visual do SOFTIA.
+        previa_camera = QLabel("VISÃO\nDESL.")
+        previa_camera.setObjectName("previaCamera")
+        previa_camera.setAlignment(Qt.AlignCenter)
+        previa_camera.setFixedHeight(50)
+
+        estado_camera = QLabel("INATIVA")
+        estado_camera.setObjectName("estadoCamera")
+        estado_camera.setAlignment(Qt.AlignCenter)
+
+        layout_camera.addWidget(titulo_camera)
+        layout_camera.addWidget(previa_camera)
+        layout_camera.addWidget(estado_camera)
+
+        layout.addWidget(caixa_camera)
+
+        # -------------------- botão de configurações --------------------
+        self.btn_configuracoes = QPushButton("⚙")
+        self.btn_configuracoes.setObjectName("botaoConfig")
+        layout.addWidget(self.btn_configuracoes)
+
+        layout.addStretch(1)
+
+        # -------------------- indicadores de rodapé --------------------
+        for texto in ("● NÚCLEO ATIVO", "● SEGURANÇA OK", "● PROTOCOLO SOFTIA"):
+            indicador = QLabel(texto)
+            indicador.setObjectName("indicadorOk")
+            layout.addWidget(indicador)
+
+        return painel
+
+    # -------------------- painel central (círculo + comandos rápidos) --------------------
+    def _montar_painel_central(self):
+        painel = QFrame()
+        painel.setObjectName("painelCentral")
+
+        layout = QVBoxLayout(painel)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
+
         self.visualizador = SoftIAVisualizer()
+        layout.addWidget(self.visualizador, 1)
 
-        # [Klecio] Insere o visualizador no painel principal.
-        layout_principal.addWidget(
-            self.visualizador
+        # -------------------- comandos rápidos --------------------
+        titulo_comandos = QLabel("▾ COMANDOS RÁPIDOS")
+        titulo_comandos.setObjectName("tituloComandos")
+        layout.addWidget(titulo_comandos)
+
+        linha_comandos = QHBoxLayout()
+        linha_comandos.setSpacing(8)
+
+        self.btn_chamada = QPushButton("MICROFONE\nATIVO")
+        self.btn_chamada.setObjectName("comandoRapido")
+        self.btn_chamada.setProperty("ligado", True)
+
+        self.btn_tela = QPushButton("ANALISAR\nTELA")
+        self.btn_tela.setObjectName("comandoRapido")
+
+        self.btn_camera = QPushButton("ANALISAR\nCÂMERA")
+        self.btn_camera.setObjectName("comandoRapido")
+
+        for botao in (self.btn_chamada, self.btn_tela, self.btn_camera):
+            linha_comandos.addWidget(botao)
+
+        layout.addLayout(linha_comandos)
+
+        return painel
+
+    # -------------------- painel direito (transcrição) --------------------
+    def _montar_painel_direito(self):
+        painel = QFrame()
+        painel.setObjectName("painelDireito")
+        painel.setFixedWidth(340)
+
+        layout = QVBoxLayout(painel)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(8)
+
+        linha_titulo = QHBoxLayout()
+        titulo = QLabel("TRANSCRIÇÃO / STATUS")
+        titulo.setObjectName("tituloTranscricao")
+        rotulo_expansivel = QLabel("PAINEL EXPANSÍVEL")
+        rotulo_expansivel.setObjectName("rotuloPainelExpansivel")
+        linha_titulo.addWidget(titulo)
+        linha_titulo.addStretch(1)
+        linha_titulo.addWidget(rotulo_expansivel)
+        layout.addLayout(linha_titulo)
+
+        self.log_box = QTextEdit()
+        self.log_box.setObjectName("logBox")
+        self.log_box.setReadOnly(True)
+        self.log_box.setPlaceholderText("Aguardando eventos do sistema...")
+        self.log_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        layout.addWidget(self.log_box, 1)
+
+        linha_comando = QHBoxLayout()
+        self._campo_comando = QLineEdit()
+        self._campo_comando.setObjectName("campoComando")
+        self._campo_comando.setPlaceholderText("Digite um comando ou pergunta...")
+        botao_enviar = QPushButton("▶")
+        botao_enviar.setObjectName("botaoEnviar")
+        linha_comando.addWidget(self._campo_comando)
+        linha_comando.addWidget(botao_enviar)
+        layout.addLayout(linha_comando)
+
+        return painel
+
+    # -------------------- rodapé --------------------
+    def _montar_rodape(self):
+        rodape = QWidget()
+        rodape.setObjectName("barraRodape")
+        rodape.setFixedHeight(26)
+
+        layout = QHBoxLayout(rodape)
+        layout.setContentsMargins(14, 0, 14, 0)
+
+        esquerda = QLabel("[F11] Tela cheia   ·   [ESC] Interromper")
+        esquerda.setObjectName("textoRodape")
+
+        centro = QLabel("SoftIA · Assistente de IA para Desktop")
+        centro.setObjectName("textoRodape")
+        centro.setAlignment(Qt.AlignCenter)
+
+        direita = QLabel("© Klecio Mauricio")
+        direita.setObjectName("textoRodape")
+        direita.setAlignment(Qt.AlignRight)
+
+        layout.addWidget(esquerda)
+        layout.addWidget(centro, 1)
+        layout.addWidget(direita)
+
+        return rodape
+
+    # ========================================================
+    # RELÓGIO E HARDWARE
+    # ========================================================
+
+    def _atualizar_relogio(self):
+        agora = datetime.now()
+        self._label_relogio.setText(agora.strftime("%H:%M:%S"))
+        self._label_data.setText(agora.strftime("%a %d %b %Y"))
+
+    def _atualizar_hardware(self, uso_cpu, uso_ram, uso_disco, rede_kbps, total_processos):
+        self._caixa_cpu.definir_valor(f"{uso_cpu:.0f}%", uso_cpu)
+        self._caixa_ram.definir_valor(f"{uso_ram:.0f}%", uso_ram)
+
+        if rede_kbps >= 1024:
+            texto_rede = f"{rede_kbps / 1024:.1f}MB/s"
+        else:
+            texto_rede = f"{rede_kbps:.0f}KB/s"
+        self._caixa_rede.definir_valor(texto_rede, None)
+
+        # GPU e temperatura ficam "N/D": o Windows não expõe isso de
+        # forma confiável sem biblioteca extra específica do fabricante
+        # da placa — mesmo comportamento visto no painel original.
+        self._caixa_gpu.definir_valor("N/D", None)
+        self._caixa_temp.definir_valor("N/D", None)
+
+        tempo_aberto = int(time.monotonic() - self._aberto_desde)
+        horas, resto = divmod(tempo_aberto, 3600)
+        minutos, _ = divmod(resto, 60)
+        self._label_info_compacta.setText(
+            f"LIG  {horas:02d}:{minutos:02d}\n"
+            f"PROC  {total_processos}\n"
+            f"SO  WIN"
         )
 
-        # [Klecio] Adiciona cada painel ao layout raiz.
-        layout_raiz.addWidget(
-            painel_lateral
-        )
+    # ========================================================
+    # O RESTO DA LÓGICA (chamada, hardware, configurações) É O
+    # MESMO DE ANTES DA TROCA DE VISUAL — só a montagem da
+    # interface mudou acima.
+    # ========================================================
 
-        # [Klecio] Adiciona cada painel ao layout raiz.
-        layout_raiz.addWidget(
-            painel_principal,
-            1,
-        )
-
-        # [Klecio] Define o container como conteúdo central da QMainWindow.
-        self.setCentralWidget(
-            container
-        )
-
-        # [Klecio] Ao clicar no botão principal, chama alternar_chamada.
-        self.btn_chamada.clicked.connect(
-            self.alternar_chamada
-        )
-
-        # [Klecio] Liga o botão de tela ao método analisar_tela.
-        self.btn_tela.clicked.connect(
-            self.analisar_tela
-        )
-
-        # [Klecio] Liga o botão da câmera ao método analisar_camera.
-        self.btn_camera.clicked.connect(
-            self.analisar_camera
-        )
-
-        # [Klecio] Liga o botão de Configurações à janela de Configurações.
-        self.btn_configuracoes.clicked.connect(
-            self.abrir_configuracoes
-        )
-
-    # [Klecio] Acrescenta uma mensagem ao registro de atividades.
     def escrever_log(self, texto):
-        # [Klecio] append adiciona o texto ao final, em uma nova linha.
-        self.log_box.append(
-            f"> {texto}"
-        )
+        self.log_box.append(f"> {texto}")
 
-    # [Klecio] Decide se deve iniciar ou encerrar a conexão.
     def alternar_chamada(self):
-        # [Klecio] Sem worker ativo, inicia uma nova conexão.
         if self.live_worker is None:
-            # Uma chamada iniciada manualmente pelo usuário deve começar limpa.
-            # O session_handle só é preservado em reconexões automáticas.
             self.session_handle = None
             self.iniciar_chamada()
-
-        # [Klecio] Com worker ativo, solicita o encerramento.
         else:
             self.encerrar_chamada()
 
-    # [Klecio] Atualiza a interface, cria o worker,
-    # [Klecio] conecta os sinais e inicia a thread Gemini.
     def iniciar_chamada(self):
-        # [Klecio] Troca o texto do botão para indicar que agora ele encerra.
-        self.btn_chamada.setText(
-            "ENCERRAR CONEXÃO"
-        )
+        self.btn_chamada.setText("ENCERRAR\nCONEXÃO")
+        self.btn_chamada.setProperty("perigo", True)
+        self.btn_chamada.setProperty("ligado", False)
+        self.btn_chamada.style().unpolish(self.btn_chamada)
+        self.btn_chamada.style().polish(self.btn_chamada)
 
-        # [Klecio] Define a propriedade dinâmica usada pelo QSS.
-        # [Klecio] O valor True ativa o seletor [encerrando="true"].
-        self.btn_chamada.setProperty(
-            "encerrando",
-            True,
-        )
+        self.visualizador.definir_ativo(True)
+        self.visualizador.definir_status("CONECTANDO")
 
-        # [Klecio] Remove temporariamente o estilo atual do botão.
-        self.btn_chamada.style().unpolish(
-            self.btn_chamada
-        )
-
-        # [Klecio] Reaplica o estilo considerando a nova propriedade.
-        self.btn_chamada.style().polish(
-            self.btn_chamada
-        )
-
-        # [Klecio] Ativa o modo animado do visualizador.
-        self.visualizador.definir_ativo(
-            True
-        )
-
-        # [Klecio] Atualiza o texto de status da esfera.
-        self.visualizador.definir_status(
-            "CONECTANDO"
-        )
-
-        # [Klecio] Cria a thread responsável pela chamada Gemini Live.
         self.encerramento_manual = False
         self.live_worker = GeminiLiveWorker(
             session_handle=self.session_handle,
             modo_silencio=self.modo_silencio,
         )
 
-        # [Klecio] Encaminha mensagens de status para atualizar_status.
-        self.live_worker.status_recebido.connect(
-            self.atualizar_status
-        )
+        self.live_worker.status_recebido.connect(self.atualizar_status)
+        self.live_worker.erro_recebido.connect(self.mostrar_erro)
+        self.live_worker.chamada_encerrada.connect(self.chamada_finalizada)
+        self.live_worker.solicitou_encerramento.connect(self.encerrar_chamada_por_voz)
+        self.live_worker.solicitou_reconexao.connect(self.preparar_reconexao_automatica)
+        self.live_worker.session_handle_atualizado.connect(self.salvar_session_handle)
 
-        # [Klecio] Encaminha erros para mostrar_erro.
-        self.live_worker.erro_recebido.connect(
-            self.mostrar_erro
-        )
+        if hasattr(self.live_worker, "modo_silencio_atualizado"):
+            self.live_worker.modo_silencio_atualizado.connect(self.salvar_modo_silencio)
 
-        # [Klecio] Chama chamada_finalizada quando a thread termina.
-        self.live_worker.chamada_encerrada.connect(
-            self.chamada_finalizada
-        )
+        if hasattr(self.live_worker, "nivel_audio"):
+            self.live_worker.nivel_audio.connect(self.visualizador.definir_nivel_audio)
 
-        # [Klecio] Permite que o comando de voz encerre a conexão.
-        self.live_worker.solicitou_encerramento.connect(
-            self.encerrar_chamada_por_voz
-        )
-
-        # O GoAway é uma renovação normal solicitada pelo servidor.
-        # Não deve aparecer como erro nem como encerramento manual.
-        self.live_worker.solicitou_reconexao.connect(
-            self.preparar_reconexao_automatica
-        )
-
-        self.live_worker.session_handle_atualizado.connect(
-            self.salvar_session_handle
-        )
-
-        # Mantém o estado do modo silêncio sincronizado, para que uma
-        # reconexão automática (renovação do WebSocket) o repasse à
-        # nova instância em vez de reiniciar falando.
-        if hasattr(
-            self.live_worker,
-            "modo_silencio_atualizado",
-        ):
-            self.live_worker.modo_silencio_atualizado.connect(
-                self.salvar_modo_silencio
-            )
-
-        # [Klecio] Verifica se esta versão do worker possui o sinal nivel_audio.
-        if hasattr(
-            self.live_worker,
-            "nivel_audio",
-        ):
-            # [Klecio] Liga o volume da voz à animação do visualizador.
-            self.live_worker.nivel_audio.connect(
-                self.visualizador.definir_nivel_audio
-            )
-
-        # [Klecio] Inicia efetivamente a QThread.
         self.live_worker.start()
 
     def encerrar_chamada_por_voz(self):
-        """
-        Encerra definitivamente a conversa atual por comando de voz.
-
-        O token da sessão é apagado para que a próxima chamada iniciada
-        pelo usuário não retome o comando antigo de encerramento.
-        """
-
         self.session_handle = None
         self.encerrar_chamada()
 
-    # [Klecio] Solicita o encerramento controlado da conexão.
     def encerrar_chamada(self):
-        # [Klecio] Só executa se houver worker ativo.
         if self.live_worker:
             self.encerramento_manual = True
             self.reconectar_automaticamente = False
-
-            # Encerramento solicitado pelo usuário finaliza a conversa atual.
-            # Apenas GoAway/erro automático preserva o session_handle.
             self.session_handle = None
             self.modo_silencio = False
-            self.visualizador.definir_status(
-                "ENCERRANDO CONEXÃO"
-            )
-
-            # [Klecio] Altera o estado interno do worker para finalizar os loops.
+            self.visualizador.definir_status("ENCERRANDO CONEXÃO")
             self.live_worker.parar()
 
-    # [Klecio] Atualiza o status visual e registra a mesma mensagem no log.
     def atualizar_status(self, texto):
-        # [Klecio] Atualiza o texto de status da esfera.
-        self.visualizador.definir_status(
-            texto
-        )
+        self.visualizador.definir_status(texto)
+        self.escrever_log(texto)
 
-        self.escrever_log(
-            texto
-        )
-
-    # [Klecio] Exibe o estado de erro, zera a animação
-    # [Klecio] de áudio e registra os detalhes.
     def mostrar_erro(self, erro):
         if not self.encerramento_manual:
             self.reconectar_automaticamente = True
+        self.visualizador.definir_status("ERRO NA CONEXÃO")
+        self.visualizador.definir_nivel_audio(0.0)
+        self.escrever_log(f"Erro: {erro}")
 
-        # [Klecio] Atualiza o texto de status da esfera.
-        self.visualizador.definir_status(
-            "ERRO NA CONEXÃO"
-        )
-
-        # [Klecio] Zera a reação visual de áudio.
-        self.visualizador.definir_nivel_audio(
-            0.0
-        )
-
-        self.escrever_log(
-            f"Erro: {erro}"
-        )
-
-    # [Klecio] Restaura toda a interface após o fim da chamada.
     def chamada_finalizada(self):
-        # [Klecio] Remove a referência da thread já finalizada.
         self.live_worker = None
+        self.btn_chamada.setText("MICROFONE\nATIVO")
+        self.btn_chamada.setProperty("perigo", False)
+        self.btn_chamada.setProperty("ligado", True)
+        self.btn_chamada.style().unpolish(self.btn_chamada)
+        self.btn_chamada.style().polish(self.btn_chamada)
 
-        # [Klecio] Troca o texto do botão para indicar que agora ele encerra.
-        self.btn_chamada.setText(
-            "INICIAR CONEXÃO"
-        )
-
-        # [Klecio] Define a propriedade dinâmica usada pelo QSS.
-        # [Klecio] O valor True ativa o seletor [encerrando="true"].
-        self.btn_chamada.setProperty(
-            "encerrando",
-            False,
-        )
-
-        # [Klecio] Remove temporariamente o estilo atual do botão.
-        self.btn_chamada.style().unpolish(
-            self.btn_chamada
-        )
-
-        # [Klecio] Reaplica o estilo considerando a nova propriedade.
-        self.btn_chamada.style().polish(
-            self.btn_chamada
-        )
-
-        # [Klecio] Ativa o modo animado do visualizador.
-        self.visualizador.definir_ativo(
-            False
-        )
-
-        # [Klecio] Atualiza o texto de status da esfera.
-        self.visualizador.definir_status(
-            "OFFLINE"
-        )
-
-        # [Klecio] Zera a reação visual de áudio.
-        self.visualizador.definir_nivel_audio(
-            0.0
-        )
+        self.visualizador.definir_ativo(False)
+        self.visualizador.definir_status("OFFLINE")
+        self.visualizador.definir_nivel_audio(0.0)
 
         if self.reconectar_automaticamente and not self.encerramento_manual:
             self.reconectar_automaticamente = False
-            self.escrever_log(
-                "Reconectando automaticamente sem perder a conversa..."
-            )
+            self.escrever_log("Reconectando automaticamente sem perder a conversa...")
             QTimer.singleShot(450, self.iniciar_chamada)
         else:
-            self.escrever_log(
-                "Chamada encerrada."
-            )
+            self.escrever_log("Chamada encerrada.")
 
     def preparar_reconexao_automatica(self):
-        """
-        Marca a próxima abertura como renovação normal da sessão.
-        O worker atual será fechado de forma limpa e a interface
-        iniciará outro usando o mesmo session_handle.
-        """
-
         if self.encerramento_manual:
             return
-
         self.reconectar_automaticamente = True
-        self.visualizador.definir_status(
-            "RENOVANDO CONEXÃO"
-        )
-
-        self.escrever_log(
-            "Renovando a conexão sem perder a conversa..."
-        )
+        self.visualizador.definir_status("RENOVANDO CONEXÃO")
+        self.escrever_log("Renovando a conexão sem perder a conversa...")
 
     def salvar_session_handle(self, handle):
         if handle:
             self.session_handle = handle
 
-    # Guarda o estado atual do modo silêncio para repassar
-    # à próxima instância do worker em uma reconexão automática.
     def salvar_modo_silencio(self, ativo):
         self.modo_silencio = ativo
 
-    # [Klecio] Solicita ao worker a captura e análise da tela.
     def analisar_tela(self):
-        # [Klecio] Impede a ação quando não há conexão ativa.
         if not self.live_worker:
-            self.escrever_log(
-                "Inicie a conexão antes de analisar a tela."
-            )
-
+            self.escrever_log("Inicie a conexão antes de analisar a tela.")
             return
-
-        self.escrever_log(
-            "Solicitando análise da tela..."
-        )
-
-        # [Klecio] Encaminha o pedido de tela para a thread Gemini.
+        self.escrever_log("Solicitando análise da tela...")
         self.live_worker.solicitar_analise_tela()
 
-    # [Klecio] Solicita ao worker a captura e análise da câmera.
     def analisar_camera(self):
-        # [Klecio] Impede a ação quando não há conexão ativa.
         if not self.live_worker:
-            self.escrever_log(
-                "Inicie a conexão antes de analisar a câmera."
-            )
-
+            self.escrever_log("Inicie a conexão antes de analisar a câmera.")
             return
-
-        self.escrever_log(
-            "Solicitando análise da câmera..."
-        )
-
-        # [Klecio] Encaminha o pedido de câmera para a thread Gemini.
+        self.escrever_log("Solicitando análise da câmera...")
         self.live_worker.solicitar_analise_camera()
 
-    # [Klecio] Atualiza os rótulos de CPU, RAM e disco do painel de
-    # [Klecio] hardware. Os valores já chegam prontos, calculados na
-    # [Klecio] thread MonitorHardwareThread — este método só atualiza
-    # [Klecio] o texto, o que é instantâneo e nunca trava a interface.
-    def _atualizar_hardware(self, uso_cpu, uso_ram, uso_disco):
-        self.label_cpu.setText(
-            f"CPU: {uso_cpu:.0f}%"
-        )
-
-        self.label_ram.setText(
-            f"RAM: {uso_ram:.0f}%"
-        )
-
-        self.label_disco.setText(
-            f"Disco: {uso_disco:.0f}%"
-        )
-
-    # [Klecio] Atualiza o título da janela e o texto central do
-    # [Klecio] visualizador com o nome configurado pelo usuário.
     def _aplicar_nome_assistente(self, nome):
-        nome = str(
-            nome or "SOFTIA"
-        ).strip() or "SOFTIA"
+        nome = str(nome or "SOFTIA").strip() or "SOFTIA"
+        self.setWindowTitle(f"{nome.upper()} // Neural Desktop Assistant")
+        self.visualizador.definir_nome(nome)
 
-        self.setWindowTitle(
-            f"{nome.upper()} // Neural Desktop Assistant"
-        )
-
-        self.visualizador.definir_nome(
-            nome
-        )
-
-    # [Klecio] Abre a janela de Configurações e aplica as mudanças
-    # [Klecio] salvas imediatamente, sem reiniciar nem reinstalar o SOFTIA.
     def abrir_configuracoes(self):
         configuracoes_atuais = carregar_configuracoes()
-
-        dialogo = ConfiguracoesDialog(
-            self,
-            configuracoes_atuais=configuracoes_atuais,
-        )
-
+        dialogo = ConfiguracoesDialog(self, configuracoes_atuais=configuracoes_atuais)
         if dialogo.exec() != ConfiguracoesDialog.Accepted:
             return
+        novas_configuracoes = salvar_configuracoes(dialogo.configuracoes_confirmadas)
+        os.environ["GEMINI_API_KEY"] = novas_configuracoes["gemini_api_key"]
+        self._aplicar_nome_assistente(novas_configuracoes["nome_assistente"])
+        self.escrever_log("Configurações salvas.")
 
-        novas_configuracoes = salvar_configuracoes(
-            dialogo.configuracoes_confirmadas
-        )
-
-        os.environ["GEMINI_API_KEY"] = (
-            novas_configuracoes["gemini_api_key"]
-        )
-
-        self._aplicar_nome_assistente(
-            novas_configuracoes["nome_assistente"]
-        )
-
-        self.escrever_log(
-            "Configurações salvas."
-        )
-
-    # [Klecio] Evento executado automaticamente ao fechar a janela.
-    # [Klecio] Ele garante que a thread não permaneça rodando em segundo plano.
     def closeEvent(self, event):
-        # [Klecio] Para a thread do painel de hardware e aguarda
-        # [Klecio] seu encerramento antes de fechar a janela.
         self.thread_hardware.parar()
         self.thread_hardware.wait(3000)
-
-        # [Klecio] Só executa se houver worker ativo.
         if self.live_worker:
-            # [Klecio] Altera o estado interno do worker para finalizar os loops.
             self.live_worker.parar()
-
-            # [Klecio] Aguarda por até 3 segundos o encerramento da thread.
-            self.live_worker.wait(
-                3000
-            )
-
-        # [Klecio] Autoriza o fechamento definitivo da janela.
+            self.live_worker.wait(3000)
         event.accept()

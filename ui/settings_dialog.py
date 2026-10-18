@@ -33,38 +33,44 @@ class ConfiguracoesDialog(QDialog):
         self.setMinimumWidth(440)
         self.setModal(True)
 
-        # Reaproveita a mesma identidade visual escura do restante do app.
+        # Reaproveita a mesma identidade visual "terminal ciano" do
+        # restante do app (trocada em 19/09/2026, mesma paleta do
+        # JARVIS-CyberBot).
         self.setStyleSheet(
             """
             QDialog {
-                background-color: #050507;
+                background-color: #00060a;
             }
             QLabel {
-                color: #f2f2f4;
-                font-family: "Segoe UI";
+                color: #8ffcff;
+                font-family: "Courier New";
             }
             QLineEdit, QComboBox {
                 min-height: 34px;
                 padding: 0 10px;
-                color: #f5f5f6;
-                background-color: rgba(18, 18, 22, 235);
-                border: 1px solid rgba(60, 150, 255, 90);
+                color: #8ffcff;
+                background-color: rgba(1, 15, 24, 235);
+                border: 1px solid rgba(26, 92, 122, 200);
                 border-radius: 8px;
+                font-family: "Courier New";
             }
             QCheckBox {
-                color: #f2f2f4;
+                color: #8ffcff;
+                font-family: "Courier New";
             }
             QPushButton {
                 min-height: 38px;
                 padding: 0 14px;
-                color: #f5f5f6;
-                background-color: rgba(18, 18, 22, 235);
-                border: 1px solid rgba(60, 150, 255, 75);
+                color: #8ffcff;
+                background-color: rgba(1, 15, 24, 235);
+                border: 1px solid rgba(26, 92, 122, 180);
                 border-radius: 8px;
+                font-family: "Courier New";
                 font-weight: 600;
             }
             QPushButton:hover {
-                background-color: rgba(10, 35, 70, 245);
+                background-color: rgba(0, 31, 46, 245);
+                border: 1px solid rgba(0, 212, 255, 200);
             }
             """
         )

@@ -109,6 +109,11 @@ from actions.mouse_actions import (
 # um elemento visível na tela com base em uma descrição.
 from vision.click_locator import localizar_elemento_na_tela
 
+# Computer use: olha a tela, decide, clica/digita/arrasta sozinho e
+# confere o resultado, em loop, até terminar uma tarefa mais longa.
+from actions.usar_computador import usar_computador
+from actions.desenhar_na_tela import desenhar_na_tela
+
 # Função que orquestra o envio de mensagens de texto pelo
 # WhatsApp Desktop, combinando visão computacional e automação.
 from actions.whatsapp_actions import enviar_mensagem_whatsapp
@@ -135,6 +140,35 @@ from actions.text_actions import escrever_no_campo_ativo
 # Função responsável por coletar informações de hardware
 # do computador, como processador, memória, disco e placa de vídeo.
 from actions.hardware_actions import obter_informacoes_hardware
+
+# Função que gera código a partir de uma descrição e salva o
+# resultado na Área de Trabalho, usando a própria API do Gemini
+# (sem servidor de terceiros).
+from actions.code_actions import escrever_codigo
+
+# Funções de controle de mídia: pausar/continuar vídeo ou música,
+# próxima faixa, volume e fechar a aba ou aplicativo ativo.
+from actions.media_actions import (
+    pausar_ou_continuar_video,
+    proxima_faixa,
+    aumentar_volume,
+    diminuir_volume,
+    fechar_aba_ou_aplicativo,
+)
+
+# Função que fecha uma janela pelo nome, mesmo que ela não esteja
+# em primeiro plano (diferente de fechar_aba_ou_aplicativo, que só
+# fecha o que está ativo agora).
+from actions.janela_actions import fechar_janela
+
+# Função que escreve um comando de PowerShell para uma tarefa livre
+# (o que o Windows souber fazer) e executa com freios de segurança.
+from actions.comando_actions import executar_tarefa_por_comando
+
+# Função que digita um texto AO VIVO, caractere por caractere, na
+# janela pedida (diferente de escrever_no_campo_ativo, que cola o
+# texto de uma vez).
+from actions.digitacao_actions import digitar_ao_vivo
 
 
 
@@ -1038,6 +1072,318 @@ class GeminiLiveWorker(QThread):
                             "informar as especificações, configuração ou "
                             "hardware da máquina. Nunca invente valores de "
                             "hardware; use sempre o resultado desta função."
+                        ),
+                    ),
+
+                    # Cada FunctionDeclaration descreve uma função local
+                    # que poderá ser solicitada pelo modelo.
+                    types.FunctionDeclaration(
+                        name="escrever_codigo",
+                        description=(
+                            "Escreve um código de programação a partir de "
+                            "uma descrição e salva o arquivo na Área de "
+                            "Trabalho. Use quando o usuário pedir para criar, "
+                            "escrever, gerar ou programar um script, função "
+                            "ou programa. Nunca escreva o código você mesmo "
+                            "na conversa nem invente que já criou o arquivo "
+                            "sem chamar esta função."
+                        ),
+                        # Schema define os parâmetros esperados pela função.
+                        # Isso ajuda o modelo a enviar argumentos corretos.
+                        parameters=types.Schema(
+                            type="OBJECT",
+                            properties={
+                                "descricao": types.Schema(
+                                    type="STRING",
+                                    description=(
+                                        "O que o código deve fazer, com o "
+                                        "máximo de detalhe que o usuário deu."
+                                    ),
+                                ),
+                                "linguagem": types.Schema(
+                                    type="STRING",
+                                    description=(
+                                        "Linguagem de programação pedida, "
+                                        "como python, javascript ou html. "
+                                        "Se o usuário não disser, use python."
+                                    ),
+                                ),
+                                "nome_arquivo": types.Schema(
+                                    type="STRING",
+                                    description=(
+                                        "Nome desejado para o arquivo, sem "
+                                        "extensão. Se o usuário não pedir um "
+                                        "nome, deixe em branco."
+                                    ),
+                                ),
+                            },
+                            required=["descricao"],
+                        ),
+                    ),
+
+                    # Cada FunctionDeclaration descreve uma função local
+                    # que poderá ser solicitada pelo modelo.
+                    types.FunctionDeclaration(
+                        name="pausar_ou_continuar_video",
+                        description=(
+                            "Pausa ou retoma o vídeo, música ou faixa que "
+                            "está tocando agora (YouTube, Spotify ou "
+                            "qualquer player). Use quando o usuário pedir "
+                            "para pausar, parar, continuar ou retomar a "
+                            "reprodução."
+                        ),
+                    ),
+
+                    # Cada FunctionDeclaration descreve uma função local
+                    # que poderá ser solicitada pelo modelo.
+                    types.FunctionDeclaration(
+                        name="proxima_faixa",
+                        description=(
+                            "Avança para a próxima faixa, música ou vídeo "
+                            "no player ativo. Use quando o usuário pedir "
+                            "para pular, trocar de música ou ir para a "
+                            "próxima faixa."
+                        ),
+                    ),
+
+                    # Cada FunctionDeclaration descreve uma função local
+                    # que poderá ser solicitada pelo modelo.
+                    types.FunctionDeclaration(
+                        name="aumentar_volume",
+                        description=(
+                            "Aumenta o volume do sistema. Use quando o "
+                            "usuário pedir para aumentar, subir ou colocar "
+                            "mais alto o volume ou o som."
+                        ),
+                    ),
+
+                    # Cada FunctionDeclaration descreve uma função local
+                    # que poderá ser solicitada pelo modelo.
+                    types.FunctionDeclaration(
+                        name="diminuir_volume",
+                        description=(
+                            "Diminui o volume do sistema. Use quando o "
+                            "usuário pedir para diminuir, abaixar ou "
+                            "colocar mais baixo o volume ou o som."
+                        ),
+                    ),
+
+                    # Cada FunctionDeclaration descreve uma função local
+                    # que poderá ser solicitada pelo modelo.
+                    types.FunctionDeclaration(
+                        name="fechar_aba_ou_aplicativo",
+                        description=(
+                            "Fecha a aba do navegador ou o aplicativo que "
+                            "está em primeiro plano agora. Use quando o "
+                            "usuário pedir para fechar a aba, a janela ou "
+                            "o aplicativo atual."
+                        ),
+                    ),
+
+                    # Cada FunctionDeclaration descreve uma função local
+                    # que poderá ser solicitada pelo modelo.
+                    types.FunctionDeclaration(
+                        name="fechar_janela",
+                        description=(
+                            "Fecha uma janela, pasta ou aplicativo pelo "
+                            "nome, mesmo que não esteja em primeiro plano. "
+                            "Use quando o usuário pedir para fechar algo "
+                            "específico pelo nome, como 'fecha a pasta de "
+                            "downloads' ou 'fecha o bloco de notas'. Para "
+                            "fechar a aba ou janela que está ativa agora, "
+                            "use fechar_aba_ou_aplicativo em vez desta."
+                        ),
+                        # Schema define os parâmetros esperados pela função.
+                        # Isso ajuda o modelo a enviar argumentos corretos.
+                        parameters=types.Schema(
+                            type="OBJECT",
+                            properties={
+                                "nome": types.Schema(
+                                    type="STRING",
+                                    description=(
+                                        "Nome da janela, pasta ou "
+                                        "aplicativo a fechar, como o "
+                                        "usuário chamou."
+                                    ),
+                                ),
+                            },
+                            required=["nome"],
+                        ),
+                    ),
+
+                    # Cada FunctionDeclaration descreve uma função local
+                    # que poderá ser solicitada pelo modelo.
+                    types.FunctionDeclaration(
+                        name="executar_tarefa_por_comando",
+                        description=(
+                            "Executa no Windows uma tarefa livre que nenhuma "
+                            "outra função cobre, como consultar espaço em "
+                            "disco, compactar ou descompactar uma pasta, "
+                            "listar processos, ou qualquer coisa que o "
+                            "Windows saiba fazer. Um comando de PowerShell é "
+                            "escrito e revisado antes de rodar; comandos "
+                            "destrutivos (formatar, apagar disco, desligar "
+                            "o PC, mexer no registro) são recusados "
+                            "automaticamente. Não use para o que já tem "
+                            "função própria, como abrir aplicativo, mexer "
+                            "em arquivo da Área de Trabalho ou pesquisar na "
+                            "internet."
+                        ),
+                        # Schema define os parâmetros esperados pela função.
+                        # Isso ajuda o modelo a enviar argumentos corretos.
+                        parameters=types.Schema(
+                            type="OBJECT",
+                            properties={
+                                "tarefa": types.Schema(
+                                    type="STRING",
+                                    description=(
+                                        "O que o usuário pediu, com o "
+                                        "máximo de detalhe possível."
+                                    ),
+                                ),
+                            },
+                            required=["tarefa"],
+                        ),
+                    ),
+
+                    # Cada FunctionDeclaration descreve uma função local
+                    # que poderá ser solicitada pelo modelo.
+                    types.FunctionDeclaration(
+                        name="digitar_ao_vivo",
+                        description=(
+                            "Digita um texto AO VIVO, caractere por "
+                            "caractere, como se estivesse sendo escrito na "
+                            "hora, numa janela como o Bloco de Notas, Word "
+                            "ou VS Code. Use quando o usuário pedir para "
+                            "'digitar' ou 'escrever' algo DENTRO de um "
+                            "programa específico, como 'digita um código de "
+                            "calculadora no bloco de notas'. Diferente de "
+                            "escrever_codigo (que salva um arquivo pronto) "
+                            "e de escrever_no_campo_ativo (que cola o texto "
+                            "de uma vez, sem efeito de digitação)."
+                        ),
+                        # Schema define os parâmetros esperados pela função.
+                        # Isso ajuda o modelo a enviar argumentos corretos.
+                        parameters=types.Schema(
+                            type="OBJECT",
+                            properties={
+                                "conteudo": types.Schema(
+                                    type="STRING",
+                                    description=(
+                                        "O texto ou código completo a "
+                                        "digitar, já pronto — sem "
+                                        "introdução, aspas externas ou "
+                                        "explicação."
+                                    ),
+                                ),
+                                "janela": types.Schema(
+                                    type="STRING",
+                                    description=(
+                                        "Nome da janela onde digitar, como "
+                                        "'bloco de notas', 'word' ou "
+                                        "'vscode'. Se o usuário não disser, "
+                                        "deixe em branco para digitar onde "
+                                        "o cursor já estiver."
+                                    ),
+                                ),
+                            },
+                            required=["conteudo"],
+                        ),
+                    ),
+
+                    # Cada FunctionDeclaration descreve uma função local
+                    # que poderá ser solicitada pelo modelo.
+                    types.FunctionDeclaration(
+                        name="usar_computador",
+                        description=(
+                            "Usa o computador sozinho para completar uma tarefa "
+                            "que precisa de vários cliques, digitação ou arrastos "
+                            "em sequência (ex.: preencher um formulário, navegar "
+                            "por menus, organizar arquivos arrastando). Olha a "
+                            "tela, decide o próximo passo e confere o resultado, "
+                            "em loop, até terminar ou desistir — pode levar "
+                            "alguns minutos. Use só quando as ferramentas mais "
+                            "simples (clicar_elemento_visual, digitar_ao_vivo, "
+                            "rolar_pagina) não bastarem para a tarefa toda. "
+                            "NUNCA use para pagar, comprar, excluir, apagar, "
+                            "enviar, transferir, instalar, desinstalar, formatar "
+                            "ou desligar algo — essas ações são recusadas."
+                        ),
+                        parameters=types.Schema(
+                            type="OBJECT",
+                            properties={
+                                "tarefa": types.Schema(
+                                    type="STRING",
+                                    description=(
+                                        "O que fazer no computador, com o máximo "
+                                        "de detalhe que o usuário deu (ex.: 'abre "
+                                        "o Bloco de Notas, escreve uma lista de "
+                                        "compras e salva na Área de Trabalho')."
+                                    ),
+                                ),
+                            },
+                            required=["tarefa"],
+                        ),
+                    ),
+
+                    # Cada FunctionDeclaration descreve uma função local
+                    # que poderá ser solicitada pelo modelo.
+                    types.FunctionDeclaration(
+                        name="desenhar_na_tela",
+                        description=(
+                            "Desenha algo de verdade no Microsoft Paint, "
+                            "sozinho: escolhe a ferramenta certa (retângulo, "
+                            "oval, triângulo, polígono...) e as cores para "
+                            "cada peça, e desenha na tela. Use para pedidos "
+                            "como 'desenha uma casa', 'desenha um pôr do sol "
+                            "com um barco', 'melhora esse desenho' (refazer "
+                            "o último pedido com uma composição diferente) "
+                            "ou 'desenha essa foto' (quando o usuário deu um "
+                            "caminho de arquivo de imagem para virar desenho). "
+                            "Pode levar até alguns minutos; abre e maximiza o "
+                            "Paint sozinho."
+                        ),
+                        parameters=types.Schema(
+                            type="OBJECT",
+                            properties={
+                                "pedido": types.Schema(
+                                    type="STRING",
+                                    description=(
+                                        "O que desenhar, nas palavras do "
+                                        "usuário (ex.: 'uma casa com sol e "
+                                        "uma árvore'). Pode ficar vazio só "
+                                        "quando `refazer` ou `foto` "
+                                        "estiverem preenchidos."
+                                    ),
+                                ),
+                                "foto": types.Schema(
+                                    type="STRING",
+                                    description=(
+                                        "Caminho de um arquivo de imagem no "
+                                        "computador do usuário — se vier, a "
+                                        "foto é transformada em desenho "
+                                        "(sem precisar de `pedido`). Deixe "
+                                        "vazio na maioria dos pedidos."
+                                    ),
+                                ),
+                                "refazer": types.Schema(
+                                    type="BOOLEAN",
+                                    description=(
+                                        "True quando o usuário pedir para "
+                                        "melhorar, refazer ou tentar de novo "
+                                        "o último desenho, sem repetir o "
+                                        "pedido inteiro."
+                                    ),
+                                ),
+                                "critica": types.Schema(
+                                    type="STRING",
+                                    description=(
+                                        "Só junto com `refazer`: o que o "
+                                        "usuário não gostou no desenho "
+                                        "anterior, se ele disse."
+                                    ),
+                                ),
+                            },
                         ),
                     ),
 
@@ -2249,6 +2595,196 @@ class GeminiLiveWorker(QThread):
                     resultado = await self.executar_funcao_local(
                         obter_informacoes_hardware,
                         timeout=15,
+                    )
+
+                # Gera um código a partir de uma descrição e salva
+                # o arquivo na Área de Trabalho.
+                elif nome == "escrever_codigo":
+                    descricao = args.get(
+                        "descricao",
+                        "",
+                    )
+                    linguagem = args.get(
+                        "linguagem",
+                        "python",
+                    )
+                    nome_arquivo = args.get(
+                        "nome_arquivo",
+                        "",
+                    )
+
+                    self.status_recebido.emit(
+                        "Escrevendo código..."
+                    )
+
+                    resultado = await self.executar_funcao_local(
+                        escrever_codigo,
+                        descricao,
+                        linguagem,
+                        nome_arquivo,
+                        timeout=60,
+                    )
+
+                # Pausa ou retoma a reprodução atual.
+                elif nome == "pausar_ou_continuar_video":
+                    self.status_recebido.emit(
+                        "Pausando ou continuando..."
+                    )
+
+                    resultado = await self.executar_funcao_local(
+                        pausar_ou_continuar_video,
+                        timeout=10,
+                    )
+
+                # Avança para a próxima faixa.
+                elif nome == "proxima_faixa":
+                    self.status_recebido.emit(
+                        "Avançando faixa..."
+                    )
+
+                    resultado = await self.executar_funcao_local(
+                        proxima_faixa,
+                        timeout=10,
+                    )
+
+                # Aumenta o volume do sistema.
+                elif nome == "aumentar_volume":
+                    self.status_recebido.emit(
+                        "Aumentando o volume..."
+                    )
+
+                    resultado = await self.executar_funcao_local(
+                        aumentar_volume,
+                        timeout=10,
+                    )
+
+                # Diminui o volume do sistema.
+                elif nome == "diminuir_volume":
+                    self.status_recebido.emit(
+                        "Diminuindo o volume..."
+                    )
+
+                    resultado = await self.executar_funcao_local(
+                        diminuir_volume,
+                        timeout=10,
+                    )
+
+                # Fecha a aba ou aplicativo em primeiro plano.
+                elif nome == "fechar_aba_ou_aplicativo":
+                    self.status_recebido.emit(
+                        "Fechando..."
+                    )
+
+                    resultado = await self.executar_funcao_local(
+                        fechar_aba_ou_aplicativo,
+                        timeout=10,
+                    )
+
+                # Fecha uma janela pelo nome, esteja ela ativa ou não.
+                elif nome == "fechar_janela":
+                    nome_janela = args.get(
+                        "nome",
+                        "",
+                    )
+
+                    self.status_recebido.emit(
+                        f"Fechando: {nome_janela}"
+                    )
+
+                    resultado = await self.executar_funcao_local(
+                        fechar_janela,
+                        nome_janela,
+                        timeout=10,
+                    )
+
+                # Escreve e executa um comando de PowerShell para uma
+                # tarefa livre do Windows, com freios de segurança.
+                elif nome == "executar_tarefa_por_comando":
+                    tarefa = args.get(
+                        "tarefa",
+                        "",
+                    )
+
+                    self.status_recebido.emit(
+                        f"Executando: {tarefa}"
+                    )
+
+                    resultado = await self.executar_funcao_local(
+                        executar_tarefa_por_comando,
+                        tarefa,
+                        timeout=95,
+                    )
+
+                # Digita um texto ao vivo, caractere por caractere,
+                # na janela pedida.
+                elif nome == "digitar_ao_vivo":
+                    conteudo = args.get(
+                        "conteudo",
+                        "",
+                    )
+                    janela = args.get(
+                        "janela",
+                        "",
+                    )
+
+                    self.status_recebido.emit(
+                        "Digitando..."
+                    )
+
+                    resultado = await self.executar_funcao_local(
+                        digitar_ao_vivo,
+                        conteudo,
+                        janela,
+                        timeout=200,
+                    )
+
+                elif nome == "usar_computador":
+                    tarefa = args.get(
+                        "tarefa",
+                        "",
+                    )
+
+                    self.status_recebido.emit(
+                        f"Usando o computador: {tarefa}"
+                    )
+
+                    resultado = await self.executar_funcao_local(
+                        usar_computador,
+                        tarefa,
+                        timeout=650,
+                    )
+
+                elif nome == "desenhar_na_tela":
+                    pedido = args.get(
+                        "pedido",
+                        "",
+                    )
+                    foto = args.get(
+                        "foto",
+                        "",
+                    )
+                    refazer = bool(args.get(
+                        "refazer",
+                        False,
+                    ))
+                    critica = args.get(
+                        "critica",
+                        "",
+                    )
+
+                    self.status_recebido.emit(
+                        f"Desenhando: {pedido or foto or 'melhorando o desenho'}"
+                    )
+
+                    resultado = await self.executar_funcao_local(
+                        desenhar_na_tela,
+                        pedido,
+                        foto,
+                        "",
+                        refazer,
+                        critica,
+                        None,
+                        timeout=260,
                     )
 
                 # Marca a sessão para encerrar após a despedida.
